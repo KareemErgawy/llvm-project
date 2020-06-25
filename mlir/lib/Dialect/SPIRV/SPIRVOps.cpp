@@ -28,7 +28,11 @@
 using namespace mlir;
 
 // TODO(antiagainst): generate these strings using ODS.
+static constexpr const char kMemoryAccessAttrName[] = "memory_access";
+static constexpr const char kSourceMemoryAccessAttrName[] =
+    "source_memory_access";
 static constexpr const char kAlignmentAttrName[] = "alignment";
+static constexpr const char kSourceAlignmentAttrName[] = "source_alignment";
 static constexpr const char kBranchWeightAttrName[] = "branch_weights";
 static constexpr const char kCallee[] = "callee";
 static constexpr const char kClusterSize[] = "cluster_size";
@@ -157,6 +161,8 @@ parseEnumKeywordAttr(EnumClass &value, OpAsmParser &parser,
   return success();
 }
 
+template <const char memoryAccessAttrName[] = kMemoryAccessAttrName,
+          const char alignmentAttrName[] = kAlignmentAttrName>
 static ParseResult parseMemoryAccessAttributes(OpAsmParser &parser,
                                                OperationState &state) {
   // Parse an optional list of attributes staring with '['
@@ -166,7 +172,7 @@ static ParseResult parseMemoryAccessAttributes(OpAsmParser &parser,
   }
 
   spirv::MemoryAccess memoryAccessAttr;
-  if (parseEnumStrAttr(memoryAccessAttr, parser, state)) {
+  if (parseEnumStrAttr(memoryAccessAttr, parser, state, memoryAccessAttrName)) {
     return failure();
   }
 
@@ -175,7 +181,7 @@ static ParseResult parseMemoryAccessAttributes(OpAsmParser &parser,
     Attribute alignmentAttr;
     Type i32Type = parser.getBuilder().getIntegerType(32);
     if (parser.parseComma() ||
-        parser.parseAttribute(alignmentAttr, i32Type, kAlignmentAttrName,
+        parser.parseAttribute(alignmentAttr, i32Type, alignmentAttrName,
                               state.attributes)) {
       return failure();
     }
@@ -183,19 +189,32 @@ static ParseResult parseMemoryAccessAttributes(OpAsmParser &parser,
   return parser.parseRSquare();
 }
 
-template <typename MemoryOpTy>
-static void
-printMemoryAccessAttribute(MemoryOpTy memoryOp, OpAsmPrinter &printer,
-                           SmallVectorImpl<StringRef> &elidedAttrs) {
+template <const char memoryAccessAttrName[] = kMemoryAccessAttrName,
+          const char alignmentAttrName[] = kAlignmentAttrName,
+          bool first = true, typename MemoryOpTy>
+static void printMemoryAccessAttribute(
+    MemoryOpTy memoryOp, OpAsmPrinter &printer,
+    SmallVectorImpl<StringRef> &elidedAttrs,
+    Optional<spirv::MemoryAccess> memoryAccessAtrrValue = None,
+    Optional<llvm::APInt> alignmentAttrValue = None) {
   // Print optional memory access attribute.
-  if (auto memAccess = memoryOp.memory_access()) {
-    elidedAttrs.push_back(spirv::attributeName<spirv::MemoryAccess>());
+  if (auto memAccess = (memoryAccessAtrrValue ? memoryAccessAtrrValue
+                                              : memoryOp.memory_access())) {
+    elidedAttrs.push_back(memoryAccessAttrName);
+
+    if (!first) {
+      printer << ", ";
+    }
+
     printer << " [\"" << stringifyMemoryAccess(*memAccess) << "\"";
 
-    // Print integer alignment attribute.
-    if (auto alignment = memoryOp.alignment()) {
-      elidedAttrs.push_back(kAlignmentAttrName);
-      printer << ", " << alignment;
+    if (spirv::bitEnumContains(*memAccess, spirv::MemoryAccess::Aligned)) {
+      // Print integer alignment attribute.
+      if (auto alignment = (alignmentAttrValue ? alignmentAttrValue
+                                               : memoryOp.alignment())) {
+        elidedAttrs.push_back(alignmentAttrName);
+        printer << ", " << alignment;
+      }
     }
     printer << "]";
   }
@@ -243,17 +262,19 @@ static LogicalResult verifyCastOp(Operation *op,
   return success();
 }
 
-template <typename MemoryOpTy>
+template <const char memoryAccessAttrName[] = kMemoryAccessAttrName,
+          const char alignmentAttrName[] = kAlignmentAttrName,
+          typename MemoryOpTy>
 static LogicalResult verifyMemoryAccessAttribute(MemoryOpTy memoryOp) {
   // ODS checks for attributes values. Just need to verify that if the
   // memory-access attribute is Aligned, then the alignment attribute must be
   // present.
   auto *op = memoryOp.getOperation();
-  auto memAccessAttr = op->getAttr(spirv::attributeName<spirv::MemoryAccess>());
+  auto memAccessAttr = op->getAttr(memoryAccessAttrName);
   if (!memAccessAttr) {
     // Alignment attribute shouldn't be present if memory access attribute is
     // not present.
-    if (op->getAttr(kAlignmentAttrName)) {
+    if (op->getAttr(alignmentAttrName)) {
       return memoryOp.emitOpError(
           "invalid alignment specification without aligned memory access "
           "specification");
@@ -270,11 +291,11 @@ static LogicalResult verifyMemoryAccessAttribute(MemoryOpTy memoryOp) {
   }
 
   if (spirv::bitEnumContains(*memAccess, spirv::MemoryAccess::Aligned)) {
-    if (!op->getAttr(kAlignmentAttrName)) {
+    if (!op->getAttr(alignmentAttrName)) {
       return memoryOp.emitOpError("missing alignment value");
     }
   } else {
-    if (op->getAttr(kAlignmentAttrName)) {
+    if (op->getAttr(alignmentAttrName)) {
       return memoryOp.emitOpError(
           "invalid alignment specification with non-aligned memory access "
           "specification");
@@ -2839,6 +2860,10 @@ static void print(spirv::CopyMemoryOp copyMemory, OpAsmPrinter &printer) {
 
   SmallVector<StringRef, 4> elidedAttrs;
   printMemoryAccessAttribute(copyMemory, printer, elidedAttrs);
+  printMemoryAccessAttribute<kSourceMemoryAccessAttrName,
+                             kSourceAlignmentAttrName, false>(
+      copyMemory, printer, elidedAttrs, copyMemory.source_memory_access(),
+      copyMemory.source_alignment());
 
   printer.printOptionalAttrDict(op->getAttrs(), elidedAttrs);
 
@@ -2861,9 +2886,23 @@ static ParseResult parseCopyMemoryOp(OpAsmParser &parser,
       parser.parseOperand(targetPtrInfo) || parser.parseComma() ||
       parseEnumStrAttr(sourceStorageClass, parser) ||
       parser.parseOperand(sourcePtrInfo) ||
-      parseMemoryAccessAttributes(parser, state) ||
-      parser.parseOptionalAttrDict(state.attributes) || parser.parseColon() ||
-      parser.parseType(elementType)) {
+      parseMemoryAccessAttributes(parser, state)) {
+    return failure();
+  }
+
+  if (!parser.parseOptionalComma()) {
+    // Parse 2nd memory access attributes.
+    if (parseMemoryAccessAttributes<kSourceMemoryAccessAttrName,
+                                    kSourceAlignmentAttrName>(parser, state)) {
+      return failure();
+    }
+  }
+
+  if (parser.parseColon() || parser.parseType(elementType)) {
+    return failure();
+  }
+
+  if (parser.parseOptionalAttrDict(state.attributes)) {
     return failure();
   }
 
@@ -2890,7 +2929,12 @@ static LogicalResult verifyCopyMemory(spirv::CopyMemoryOp copyMemory) {
         "both operands must be pointers to the same type");
   }
 
-  return verifyMemoryAccessAttribute(copyMemory);
+  if (verifyMemoryAccessAttribute(copyMemory).value == LogicalResult::Failure) {
+    return failure();
+  }
+
+  return verifyMemoryAccessAttribute<kSourceMemoryAccessAttrName,
+                                     kSourceAlignmentAttrName>(copyMemory);
 }
 
 //===----------------------------------------------------------------------===//
