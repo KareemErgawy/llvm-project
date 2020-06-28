@@ -2929,7 +2929,7 @@ static LogicalResult verifyCopyMemory(spirv::CopyMemoryOp copyMemory) {
         "both operands must be pointers to the same type");
   }
 
-  if (verifyMemoryAccessAttribute(copyMemory).value == LogicalResult::Failure) {
+  if (failed(verifyMemoryAccessAttribute(copyMemory))) {
     return failure();
   }
 
