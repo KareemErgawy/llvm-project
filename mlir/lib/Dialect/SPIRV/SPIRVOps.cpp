@@ -2933,6 +2933,14 @@ static LogicalResult verifyCopyMemory(spirv::CopyMemoryOp copyMemory) {
     return failure();
   }
 
+  // TODO (ergawy): According to the spec:
+  //
+  // If two masks are present, the first applies to Target and cannot include
+  // MakePointerVisible, and the second applies to Source and cannot include
+  // MakePointerAvailable.
+  //
+  // Add such verification here.
+
   return verifyMemoryAccessAttribute<kSourceMemoryAccessAttrName,
                                      kSourceAlignmentAttrName>(copyMemory);
 }
