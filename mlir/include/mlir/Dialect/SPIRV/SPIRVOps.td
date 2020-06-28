@@ -198,7 +198,7 @@ def SPV_CopyMemoryOp : SPV_Op<"CopyMemory", []> {
     ```
     copy-memory-op ::= `spv.CopyMemory ` storage-class ssa-use
                        storage-class ssa-use
-                       (`[` memory-access `]`)?
+                       (`[` memory-access `]` (`, [` memory-access `]`)?)?
                        ` : ` spirv-element-type
     ```
 
