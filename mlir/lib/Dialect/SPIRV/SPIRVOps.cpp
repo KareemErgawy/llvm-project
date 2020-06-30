@@ -189,9 +189,10 @@ static ParseResult parseMemoryAccessAttributes(OpAsmParser &parser,
   return parser.parseRSquare();
 }
 
-template <const char memoryAccessAttrName[] = kMemoryAccessAttrName,
+template <typename MemoryOpTy,
+          const char memoryAccessAttrName[] = kMemoryAccessAttrName,
           const char alignmentAttrName[] = kAlignmentAttrName,
-          bool first = true, typename MemoryOpTy>
+          bool first = true>
 static void printMemoryAccessAttribute(
     MemoryOpTy memoryOp, OpAsmPrinter &printer,
     SmallVectorImpl<StringRef> &elidedAttrs,
@@ -262,9 +263,9 @@ static LogicalResult verifyCastOp(Operation *op,
   return success();
 }
 
-template <const char memoryAccessAttrName[] = kMemoryAccessAttrName,
-          const char alignmentAttrName[] = kAlignmentAttrName,
-          typename MemoryOpTy>
+template <typename MemoryOpTy,
+          const char memoryAccessAttrName[] = kMemoryAccessAttrName,
+          const char alignmentAttrName[] = kAlignmentAttrName>
 static LogicalResult verifyMemoryAccessAttribute(MemoryOpTy memoryOp) {
   // ODS checks for attributes values. Just need to verify that if the
   // memory-access attribute is Aligned, then the alignment attribute must be
@@ -2860,7 +2861,7 @@ static void print(spirv::CopyMemoryOp copyMemory, OpAsmPrinter &printer) {
 
   SmallVector<StringRef, 4> elidedAttrs;
   printMemoryAccessAttribute(copyMemory, printer, elidedAttrs);
-  printMemoryAccessAttribute<kSourceMemoryAccessAttrName,
+  printMemoryAccessAttribute<decltype(copyMemory), kSourceMemoryAccessAttrName,
                              kSourceAlignmentAttrName, false>(
       copyMemory, printer, elidedAttrs, copyMemory.source_memory_access(),
       copyMemory.source_alignment());
@@ -2941,7 +2942,8 @@ static LogicalResult verifyCopyMemory(spirv::CopyMemoryOp copyMemory) {
   //
   // Add such verification here.
 
-  return verifyMemoryAccessAttribute<kSourceMemoryAccessAttrName,
+  return verifyMemoryAccessAttribute<decltype(copyMemory),
+                                     kSourceMemoryAccessAttrName,
                                      kSourceAlignmentAttrName>(copyMemory);
 }
 

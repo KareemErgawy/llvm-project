@@ -1247,7 +1247,7 @@ func @cannot_be_generic_storage_class(%arg0: f32) -> () {
 
 // -----
 
-func @copy_memory_incompatible_ptrs() -> () {
+func @copy_memory_incompatible_ptrs() {
   %0 = spv.Variable : !spv.ptr<f32, Function>
   %1 = spv.Variable : !spv.ptr<i32, Function>
   // expected-error @+1 {{both operands must be pointers to the same type}}
@@ -1257,7 +1257,7 @@ func @copy_memory_incompatible_ptrs() -> () {
 
 // -----
 
-func @copy_memory_invalid_maa() -> () {
+func @copy_memory_invalid_maa() {
   %0 = spv.Variable : !spv.ptr<f32, Function>
   %1 = spv.Variable : !spv.ptr<f32, Function>
   // expected-error @+1 {{missing alignment value}}
@@ -1267,7 +1267,7 @@ func @copy_memory_invalid_maa() -> () {
 
 // -----
 
-func @copy_memory_invalid_source_maa() -> () {
+func @copy_memory_invalid_source_maa() {
   %0 = spv.Variable : !spv.ptr<f32, Function>
   %1 = spv.Variable : !spv.ptr<f32, Function>
   // expected-error @+1 {{invalid alignment specification with non-aligned memory access specification}}
@@ -1277,7 +1277,7 @@ func @copy_memory_invalid_source_maa() -> () {
 
 // -----
 
-func @copy_memory_invalid_source_maa2() -> () {
+func @copy_memory_invalid_source_maa2() {
   %0 = spv.Variable : !spv.ptr<f32, Function>
   %1 = spv.Variable : !spv.ptr<f32, Function>
   // expected-error @+1 {{missing alignment value}}
@@ -1287,7 +1287,7 @@ func @copy_memory_invalid_source_maa2() -> () {
 
 // -----
 
-func @copy_memory_print_maa() -> () {
+func @copy_memory_print_maa() {
   %0 = spv.Variable : !spv.ptr<f32, Function>
   %1 = spv.Variable : !spv.ptr<f32, Function>
 
