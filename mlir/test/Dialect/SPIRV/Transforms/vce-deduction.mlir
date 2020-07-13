@@ -203,6 +203,6 @@ spv.module Logical GLSL450 attributes {
     {max_compute_workgroup_invocations = 128 : i32,
      max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
 } {
-  spv.globalVariable @data : !spv.ptr<!spv.struct<i8 [0], f16 [2], i64 [4]>, Uniform>
+  spv.globalVariable @data : !spv.ptr<!spv.struct<(i8 [0], f16 [2], i64 [4])>, Uniform>
   spv.globalVariable @img  : !spv.ptr<!spv.image<f32, Buffer, NoDepth, NonArrayed, SingleSampled, SamplerUnknown, Rg32f>, UniformConstant>
 }

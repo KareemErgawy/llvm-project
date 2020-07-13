@@ -32,7 +32,7 @@ func @runtime_array_scalar(!spv.rtarray<f32>) -> ()
 //===----------------------------------------------------------------------===//
 
 // CHECK-LABEL: @struct(!llvm<"<{ double }>">)
-func @struct(!spv.struct<f64>) -> ()
+func @struct(!spv.struct<(f64)>) -> ()
 
 // CHECK-LABEL: @struct_nested(!llvm<"<{ i32, <{ i64, i32 }> }>">)
-func @struct_nested(!spv.struct<i32, !spv.struct<i64, i32>>)
+func @struct_nested(!spv.struct<(i32, !spv.struct<(i64, i32)>)>)

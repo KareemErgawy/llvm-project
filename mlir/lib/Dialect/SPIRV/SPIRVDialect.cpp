@@ -589,15 +589,17 @@ static ParseResult parseStructMemberDecorations(
 }
 
 // struct-member-decoration ::= integer-literal? spirv-decoration*
-// struct-type ::= `!spv.struct<` spirv-type (`[` struct-member-decoration `]`)?
-//                     (`, ` spirv-type (`[` struct-member-decoration `]`)? `>`
+// struct-type ::=
+//             `!spv.struct<(` spirv-type (`[` struct-member-decoration `]`)?
+//                  (`, ` spirv-type (`[` struct-member-decoration `]`)? `>`
 static Type parseStructType(SPIRVDialect const &dialect,
                             DialectAsmParser &parser) {
-  if (parser.parseLess())
+  if (parser.parseLess() || parser.parseLParen())
     return Type();
 
-  if (succeeded(parser.parseOptionalGreater()))
-    return StructType::getEmpty(dialect.getContext());
+  if (succeeded(parser.parseOptionalRParen()))
+    if (succeeded(parser.parseOptionalGreater()))
+      return StructType::getEmpty(dialect.getContext());
 
   SmallVector<Type, 4> memberTypes;
   SmallVector<StructType::OffsetInfo, 4> offsetInfo;
@@ -622,8 +624,10 @@ static Type parseStructType(SPIRVDialect const &dialect,
                      "offset specification must be given for all members");
     return Type();
   }
-  if (parser.parseGreater())
+
+  if (parser.parseRParen() || parser.parseGreater())
     return Type();
+
   return StructType::get(memberTypes, offsetInfo, memberDecorationInfo);
 }
 
@@ -689,7 +693,7 @@ static void print(ImageType type, DialectAsmPrinter &os) {
 }
 
 static void print(StructType type, DialectAsmPrinter &os) {
-  os << "struct<";
+  os << "struct<(";
   auto printMember = [&](unsigned i) {
     os << type.getElementType(i);
     SmallVector<spirv::StructType::MemberDecorationInfo, 0> decorations;
@@ -713,7 +717,7 @@ static void print(StructType type, DialectAsmPrinter &os) {
   };
   llvm::interleaveComma(llvm::seq<unsigned>(0, type.getNumElements()), os,
                         printMember);
-  os << ">";
+  os << ")>";
 }
 
 static void print(CooperativeMatrixNVType type, DialectAsmPrinter &os) {
