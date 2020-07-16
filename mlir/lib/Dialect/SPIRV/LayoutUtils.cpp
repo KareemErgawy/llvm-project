@@ -67,7 +67,8 @@ VulkanLayoutUtils::decorateType(spirv::StructType structType,
   size = llvm::alignTo(structMemberOffset, maxMemberAlignment);
   alignment = maxMemberAlignment;
   structType.getMemberDecorations(memberDecorations);
-  return spirv::StructType::get(memberTypes, offsetInfo, memberDecorations);
+  return spirv::StructType::get(structType.getIdentifier(), memberTypes,
+                                offsetInfo, memberDecorations);
 }
 
 Type VulkanLayoutUtils::decorateType(Type type, VulkanLayoutUtils::Size &size,

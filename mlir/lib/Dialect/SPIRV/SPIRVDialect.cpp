@@ -594,12 +594,20 @@ static ParseResult parseStructMemberDecorations(
 //                  (`, ` spirv-type (`[` struct-member-decoration `]`)? `>`
 static Type parseStructType(SPIRVDialect const &dialect,
                             DialectAsmParser &parser) {
-  if (parser.parseLess() || parser.parseLParen())
+  if (parser.parseLess())
     return Type();
 
-  if (succeeded(parser.parseOptionalRParen()))
-    if (succeeded(parser.parseOptionalGreater()))
-      return StructType::getEmpty(dialect.getContext());
+  StringRef identifier;
+
+  if (!parser.parseOptionalKeyword(&identifier))
+    if (parser.parseComma())
+      return Type();
+
+  if (parser.parseLParen())
+    return Type();
+
+  if (!parser.parseOptionalRParen() && !parser.parseOptionalGreater())
+    return StructType::getEmpty(dialect.getContext(), identifier);
 
   SmallVector<Type, 4> memberTypes;
   SmallVector<StructType::OffsetInfo, 4> offsetInfo;
@@ -628,7 +636,7 @@ static Type parseStructType(SPIRVDialect const &dialect,
   if (parser.parseRParen() || parser.parseGreater())
     return Type();
 
-  return StructType::get(memberTypes, offsetInfo, memberDecorationInfo);
+  return StructType::get(identifier, memberTypes, offsetInfo, memberDecorationInfo);
 }
 
 // spirv-type ::= array-type

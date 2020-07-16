@@ -914,23 +914,27 @@ Optional<int64_t> SPIRVType::getSizeInBytes() {
 
 struct spirv::detail::StructTypeStorage : public TypeStorage {
   StructTypeStorage(
-      unsigned numMembers, Type const *memberTypes,
+      const char *identifier, unsigned numMembers, Type const *memberTypes,
       StructType::OffsetInfo const *layoutInfo, unsigned numMemberDecorations,
       StructType::MemberDecorationInfo const *memberDecorationsInfo)
-      : TypeStorage(numMembers), memberTypes(memberTypes),
-        offsetInfo(layoutInfo), numMemberDecorations(numMemberDecorations),
+      : TypeStorage(numMembers), identifier(identifier),
+        memberTypes(memberTypes), offsetInfo(layoutInfo),
+        numMemberDecorations(numMemberDecorations),
         memberDecorationsInfo(memberDecorationsInfo) {}
 
-  using KeyTy = std::tuple<ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
+  using KeyTy = std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
                            ArrayRef<StructType::MemberDecorationInfo>>;
   bool operator==(const KeyTy &key) const {
-    return key ==
-           KeyTy(getMemberTypes(), getOffsetInfo(), getMemberDecorationsInfo());
+    return key == KeyTy(getIdentifier(), getMemberTypes(), getOffsetInfo(),
+                        getMemberDecorationsInfo());
   }
 
   static StructTypeStorage *construct(TypeStorageAllocator &allocator,
                                       const KeyTy &key) {
-    ArrayRef<Type> keyTypes = std::get<0>(key);
+    StringRef keyIdentifier = std::get<0>(key);
+    const char* identifier = allocator.copyInto(keyIdentifier.data()).data();
+
+    ArrayRef<Type> keyTypes = std::get<1>(key);
 
     // Copy the member type and layout information into the bump pointer
     const Type *typesList = nullptr;
@@ -939,8 +943,8 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     }
 
     const StructType::OffsetInfo *offsetInfoList = nullptr;
-    if (!std::get<1>(key).empty()) {
-      ArrayRef<StructType::OffsetInfo> keyOffsetInfo = std::get<1>(key);
+    if (!std::get<2>(key).empty()) {
+      ArrayRef<StructType::OffsetInfo> keyOffsetInfo = std::get<2>(key);
       assert(keyOffsetInfo.size() == keyTypes.size() &&
              "size of offset information must be same as the size of number of "
              "elements");
@@ -949,15 +953,17 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
 
     const StructType::MemberDecorationInfo *memberDecorationList = nullptr;
     unsigned numMemberDecorations = 0;
-    if (!std::get<2>(key).empty()) {
-      auto keyMemberDecorations = std::get<2>(key);
+    if (!std::get<3>(key).empty()) {
+      auto keyMemberDecorations = std::get<3>(key);
       numMemberDecorations = keyMemberDecorations.size();
       memberDecorationList = allocator.copyInto(keyMemberDecorations).data();
     }
-    return new (allocator.allocate<StructTypeStorage>())
-        StructTypeStorage(keyTypes.size(), typesList, offsetInfoList,
-                          numMemberDecorations, memberDecorationList);
+    return new (allocator.allocate<StructTypeStorage>()) StructTypeStorage(
+        identifier, keyTypes.size(), typesList, offsetInfoList,
+        numMemberDecorations, memberDecorationList);
   }
+
+  StringRef getIdentifier() const { return identifier; }
 
   ArrayRef<Type> getMemberTypes() const {
     return ArrayRef<Type>(memberTypes, getSubclassData());
@@ -978,6 +984,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     return {};
   }
 
+  const char* identifier;
   Type const *memberTypes;
   StructType::OffsetInfo const *offsetInfo;
   unsigned numMemberDecorations;
@@ -985,7 +992,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
 };
 
 StructType
-StructType::get(ArrayRef<Type> memberTypes,
+StructType::get(StringRef identifier, ArrayRef<Type> memberTypes,
                 ArrayRef<StructType::OffsetInfo> offsetInfo,
                 ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
   assert(!memberTypes.empty() && "Struct needs at least one member type");
@@ -994,13 +1001,17 @@ StructType::get(ArrayRef<Type> memberTypes,
       memberDecorations.begin(), memberDecorations.end());
   llvm::array_pod_sort(sortedDecorations.begin(), sortedDecorations.end());
   return Base::get(memberTypes.vec().front().getContext(), TypeKind::Struct,
-                   memberTypes, offsetInfo, sortedDecorations);
+                   identifier, memberTypes, offsetInfo, sortedDecorations);
 }
 
-StructType StructType::getEmpty(MLIRContext *context) {
-  return Base::get(context, TypeKind::Struct, ArrayRef<Type>(),
+StructType StructType::getEmpty(MLIRContext *context, StringRef identifier) {
+  return Base::get(context, TypeKind::Struct, identifier, ArrayRef<Type>(),
                    ArrayRef<StructType::OffsetInfo>(),
                    ArrayRef<StructType::MemberDecorationInfo>());
+}
+
+StringRef StructType::getIdentifier() const {
+  return getImpl()->identifier;
 }
 
 unsigned StructType::getNumElements() const {

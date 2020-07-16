@@ -60,7 +60,7 @@ protected:
     OpBuilder opBuilder(module->body());
     llvm::SmallVector<Type, 1> elementTypes{opBuilder.getF32Type()};
     llvm::SmallVector<spirv::StructType::OffsetInfo, 1> offsetInfo{0};
-    auto structType = spirv::StructType::get(elementTypes, offsetInfo);
+    auto structType = spirv::StructType::get("", elementTypes, offsetInfo);
     return structType;
   }
 

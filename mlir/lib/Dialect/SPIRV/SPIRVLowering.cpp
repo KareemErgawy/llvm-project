@@ -364,7 +364,7 @@ static Optional<Type> convertMemrefType(const spirv::TargetEnv &targetEnv,
   if (!type.hasStaticShape()) {
     auto arrayType = spirv::RuntimeArrayType::get(*arrayElemType, *scalarSize);
     // Wrap in a struct to satisfy Vulkan interface requirements.
-    auto structType = spirv::StructType::get(arrayType, 0);
+    auto structType = spirv::StructType::get("", arrayType, 0);
     return spirv::PointerType::get(structType, *storageClass);
   }
 
@@ -390,8 +390,8 @@ static Optional<Type> convertMemrefType(const spirv::TargetEnv &targetEnv,
   // Wrap in a struct to satisfy Vulkan interface requirements. Memrefs with
   // workgroup storage class do not need the struct to be laid out explicitly.
   auto structType = *storageClass == spirv::StorageClass::Workgroup
-                        ? spirv::StructType::get(arrayType)
-                        : spirv::StructType::get(arrayType, 0);
+                        ? spirv::StructType::get("", arrayType)
+                        : spirv::StructType::get("", arrayType, 0);
   return spirv::PointerType::get(structType, *storageClass);
 }
 

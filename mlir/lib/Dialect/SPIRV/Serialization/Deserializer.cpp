@@ -1295,7 +1295,9 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
   }
   if (operands.size() == 1) {
     // Handle empty struct.
-    typeMap[operands[0]] = spirv::StructType::getEmpty(context);
+    // TODO Make sure to handle identified structs properly. The identifier will
+    // probably be a decoration.
+    typeMap[operands[0]] = spirv::StructType::getEmpty(context, "");
     return success();
   }
 
@@ -1337,8 +1339,10 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
       }
     }
   }
+  // TODO Make sure to handle identified structs properly. The identifier will
+  // probably be a decoration.
   typeMap[operands[0]] =
-      spirv::StructType::get(memberTypes, offsetInfo, memberDecorationsInfo);
+      spirv::StructType::get("", memberTypes, offsetInfo, memberDecorationsInfo);
   // TODO: Update StructType to have member name as attribute as
   // well.
   return success();
