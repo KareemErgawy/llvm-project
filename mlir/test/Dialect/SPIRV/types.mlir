@@ -347,6 +347,40 @@ func @struct_missing_member_decorator_value(!spv.struct<(!spv.matrix<3 x vector<
 // -----
 
 //===----------------------------------------------------------------------===//
+// StructType (identified)
+//===----------------------------------------------------------------------===//
+
+// CHECK: func @id_struct_empty(!spv.struct<empty, ()>)
+func @id_struct_empty(!spv.struct<empty, ()>) -> ()
+
+// -----
+
+// CHECK: func @id_struct_empty(!spv.struct<simple, (f32)>)
+func @id_struct_empty(!spv.struct<simple, (f32)>) -> ()
+
+// -----
+
+// CHECK: func @id_struct_multiple_elements(!spv.struct<multi_elements, (f32, i32)>)
+func @id_struct_multiple_elements(!spv.struct<multi_elements, (f32, i32)>) -> ()
+
+// -----
+
+// CHECK: func @id_struct_nested_literal(!spv.struct<a, (!spv.struct<()>)>)
+func @id_struct_nested_literal(!spv.struct<a, (!spv.struct<()>)>) -> ()
+
+// -----
+
+// CHECK: func @id_struct_nested_id(!spv.struct<a, (!spv.struct<b, ()>)>)
+func @id_struct_nested_id(!spv.struct<a, (!spv.struct<b, ()>)>) -> ()
+
+// -----
+
+// CHECK: func @literal_struct_nested_id(!spv.struct<(!spv.struct<a, ()>)>)
+func @literal_struct_nested_id(!spv.struct<(!spv.struct<a, ()>)>) -> ()
+
+// -----
+
+//===----------------------------------------------------------------------===//
 // CooperativeMatrix
 //===----------------------------------------------------------------------===//
 

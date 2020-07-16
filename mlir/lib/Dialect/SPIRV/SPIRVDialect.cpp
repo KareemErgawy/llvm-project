@@ -701,7 +701,13 @@ static void print(ImageType type, DialectAsmPrinter &os) {
 }
 
 static void print(StructType type, DialectAsmPrinter &os) {
-  os << "struct<(";
+  os << "struct<";
+
+  if (!type.getIdentifier().empty())
+    os << type.getIdentifier() << ", ";
+
+  os << "(";
+
   auto printMember = [&](unsigned i) {
     os << type.getElementType(i);
     SmallVector<spirv::StructType::MemberDecorationInfo, 0> decorations;

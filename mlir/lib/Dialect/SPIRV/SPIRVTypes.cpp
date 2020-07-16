@@ -914,7 +914,7 @@ Optional<int64_t> SPIRVType::getSizeInBytes() {
 
 struct spirv::detail::StructTypeStorage : public TypeStorage {
   StructTypeStorage(
-      const char *identifier, unsigned numMembers, Type const *memberTypes,
+      StringRef identifier, unsigned numMembers, Type const *memberTypes,
       StructType::OffsetInfo const *layoutInfo, unsigned numMemberDecorations,
       StructType::MemberDecorationInfo const *memberDecorationsInfo)
       : TypeStorage(numMembers), identifier(identifier),
@@ -932,7 +932,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
   static StructTypeStorage *construct(TypeStorageAllocator &allocator,
                                       const KeyTy &key) {
     StringRef keyIdentifier = std::get<0>(key);
-    const char* identifier = allocator.copyInto(keyIdentifier.data()).data();
+    StringRef identifier = allocator.copyInto(keyIdentifier);
 
     ArrayRef<Type> keyTypes = std::get<1>(key);
 
@@ -958,6 +958,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
       numMemberDecorations = keyMemberDecorations.size();
       memberDecorationList = allocator.copyInto(keyMemberDecorations).data();
     }
+
     return new (allocator.allocate<StructTypeStorage>()) StructTypeStorage(
         identifier, keyTypes.size(), typesList, offsetInfoList,
         numMemberDecorations, memberDecorationList);
@@ -984,7 +985,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     return {};
   }
 
-  const char* identifier;
+  StringRef identifier;
   Type const *memberTypes;
   StructType::OffsetInfo const *offsetInfo;
   unsigned numMemberDecorations;
