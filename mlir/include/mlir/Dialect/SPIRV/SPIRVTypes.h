@@ -321,12 +321,15 @@ public:
   static bool kindof(unsigned kind) { return kind == TypeKind::Struct; }
 
   /// Construct a StructType with at least one member.
-  static StructType get(StringRef identifier, ArrayRef<Type> memberTypes,
+  static StructType get(ArrayRef<Type> memberTypes,
                         ArrayRef<OffsetInfo> offsetInfo = {},
                         ArrayRef<MemberDecorationInfo> memberDecorations = {});
 
-  /// Construct a struct with no members.
-  static StructType getEmpty(MLIRContext *context, StringRef identifier);
+  /// Construct an identified struct.
+  static StructType getIdentified(MLIRContext *context, StringRef identifier);
+
+  /// Construct a (possibly identified) struct with no members.
+  static StructType getEmpty(MLIRContext *context, StringRef identifier = "");
 
   StringRef getIdentifier() const;
 
@@ -367,9 +370,13 @@ public:
 
   // Returns in `decorationsInfo` all the spirv::Decorations (apart from
   // Offset) associated with the `i`-th member of the StructType.
-  void getMemberDecorations(unsigned i,
-                            SmallVectorImpl<StructType::MemberDecorationInfo>
-                                &decorationsInfo) const;
+  void getMemberDecorations(
+      unsigned i,
+      SmallVectorImpl<StructType::MemberDecorationInfo> &decorationsInfo) const;
+
+  LogicalResult
+  trySetBody(ArrayRef<Type> memberTypes, ArrayRef<OffsetInfo> offsetInfo = {},
+             ArrayRef<MemberDecorationInfo> memberDecorations = {});
 
   void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                      Optional<spirv::StorageClass> storage = llvm::None);

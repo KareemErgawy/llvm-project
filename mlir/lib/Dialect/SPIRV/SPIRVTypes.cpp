@@ -379,33 +379,42 @@ void CooperativeMatrixNVType::getCapabilities(
 // ImageType
 //===----------------------------------------------------------------------===//
 
-template <typename T> static constexpr unsigned getNumBits() { return 0; }
-template <> constexpr unsigned getNumBits<Dim>() {
+template <typename T>
+static constexpr unsigned getNumBits() {
+  return 0;
+}
+template <>
+constexpr unsigned getNumBits<Dim>() {
   static_assert((1 << 3) > getMaxEnumValForDim(),
                 "Not enough bits to encode Dim value");
   return 3;
 }
-template <> constexpr unsigned getNumBits<ImageDepthInfo>() {
+template <>
+constexpr unsigned getNumBits<ImageDepthInfo>() {
   static_assert((1 << 2) > getMaxEnumValForImageDepthInfo(),
                 "Not enough bits to encode ImageDepthInfo value");
   return 2;
 }
-template <> constexpr unsigned getNumBits<ImageArrayedInfo>() {
+template <>
+constexpr unsigned getNumBits<ImageArrayedInfo>() {
   static_assert((1 << 1) > getMaxEnumValForImageArrayedInfo(),
                 "Not enough bits to encode ImageArrayedInfo value");
   return 1;
 }
-template <> constexpr unsigned getNumBits<ImageSamplingInfo>() {
+template <>
+constexpr unsigned getNumBits<ImageSamplingInfo>() {
   static_assert((1 << 1) > getMaxEnumValForImageSamplingInfo(),
                 "Not enough bits to encode ImageSamplingInfo value");
   return 1;
 }
-template <> constexpr unsigned getNumBits<ImageSamplerUseInfo>() {
+template <>
+constexpr unsigned getNumBits<ImageSamplerUseInfo>() {
   static_assert((1 << 2) > getMaxEnumValForImageSamplerUseInfo(),
                 "Not enough bits to encode ImageSamplerUseInfo value");
   return 2;
 }
-template <> constexpr unsigned getNumBits<ImageFormat>() {
+template <>
+constexpr unsigned getNumBits<ImageFormat>() {
   static_assert((1 << 6) > getMaxEnumValForImageFormat(),
                 "Not enough bits to encode ImageFormat value");
   return 6;
@@ -913,26 +922,42 @@ Optional<int64_t> SPIRVType::getSizeInBytes() {
 //===----------------------------------------------------------------------===//
 
 struct spirv::detail::StructTypeStorage : public TypeStorage {
+  StructTypeStorage(StringRef identifier, TypeStorageAllocator &allocator)
+      : memberTypes(nullptr), offsetInfo(nullptr), numMemberDecorations(0),
+        memberDecorationsInfo(nullptr), isBodySet(false),
+        identifier(identifier), allocator(&allocator) {}
+
   StructTypeStorage(
-      StringRef identifier, unsigned numMembers, Type const *memberTypes,
+      unsigned numMembers, Type const *memberTypes,
       StructType::OffsetInfo const *layoutInfo, unsigned numMemberDecorations,
       StructType::MemberDecorationInfo const *memberDecorationsInfo)
-      : TypeStorage(numMembers), identifier(identifier),
-        memberTypes(memberTypes), offsetInfo(layoutInfo),
-        numMemberDecorations(numMemberDecorations),
-        memberDecorationsInfo(memberDecorationsInfo) {}
+      : TypeStorage(numMembers), memberTypes(memberTypes),
+        offsetInfo(layoutInfo), numMemberDecorations(numMemberDecorations),
+        memberDecorationsInfo(memberDecorationsInfo), isBodySet(false),
+        identifier(StringRef()), allocator(nullptr) {}
 
-  using KeyTy = std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
-                           ArrayRef<StructType::MemberDecorationInfo>>;
+  using KeyTy =
+      std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
+                 ArrayRef<StructType::MemberDecorationInfo>>;
   bool operator==(const KeyTy &key) const {
-    return key == KeyTy(getIdentifier(), getMemberTypes(), getOffsetInfo(),
-                        getMemberDecorationsInfo());
+    if (isIdentified())
+      // Identified types are uniqued by their identifier.
+      return getIdentifier() == std::get<0>(key);
+    else
+      return key == KeyTy(StringRef(), getMemberTypes(), getOffsetInfo(),
+                          getMemberDecorationsInfo());
   }
 
   static StructTypeStorage *construct(TypeStorageAllocator &allocator,
                                       const KeyTy &key) {
     StringRef keyIdentifier = std::get<0>(key);
-    StringRef identifier = allocator.copyInto(keyIdentifier);
+
+    if (!keyIdentifier.empty()) {
+      StringRef identifier = allocator.copyInto(keyIdentifier);
+
+      return new (allocator.allocate<StructTypeStorage>())
+          StructTypeStorage(identifier, allocator);
+    }
 
     ArrayRef<Type> keyTypes = std::get<1>(key);
 
@@ -959,12 +984,10 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
       memberDecorationList = allocator.copyInto(keyMemberDecorations).data();
     }
 
-    return new (allocator.allocate<StructTypeStorage>()) StructTypeStorage(
-        identifier, keyTypes.size(), typesList, offsetInfoList,
-        numMemberDecorations, memberDecorationList);
+    return new (allocator.allocate<StructTypeStorage>())
+        StructTypeStorage(keyTypes.size(), typesList, offsetInfoList,
+                          numMemberDecorations, memberDecorationList);
   }
-
-  StringRef getIdentifier() const { return identifier; }
 
   ArrayRef<Type> getMemberTypes() const {
     return ArrayRef<Type>(memberTypes, getSubclassData());
@@ -985,15 +1008,56 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     return {};
   }
 
-  StringRef identifier;
+  StringRef getIdentifier() const { return identifier; }
+
+  bool isIdentified() const { return !identifier.empty(); }
+
+  bool hasBody() const { return memberTypes == nullptr; }
+
+  LogicalResult
+  trySetBody(ArrayRef<Type> memberTypes,
+             ArrayRef<StructType::OffsetInfo> offsetInfo,
+             ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
+    if (isBodySet > 0) {
+      return failure();
+    }
+
+    isBodySet = true;
+    setSubclassData(memberTypes.size());
+
+    // Copy the member type and layout information into the bump pointer
+    if (!memberTypes.empty()) {
+      this->memberTypes = allocator->copyInto(memberTypes).data();
+    }
+
+    if (!offsetInfo.empty()) {
+      assert(offsetInfo.size() == memberTypes.size() &&
+             "size of offset information must be same as the size of number of "
+             "elements");
+      this->offsetInfo = allocator->copyInto(offsetInfo).data();
+    }
+
+    if (!memberDecorations.empty()) {
+      this->numMemberDecorations = memberDecorations.size();
+      this->memberDecorationsInfo =
+          allocator->copyInto(memberDecorations).data();
+    }
+
+    return success();
+  }
+
   Type const *memberTypes;
   StructType::OffsetInfo const *offsetInfo;
   unsigned numMemberDecorations;
   StructType::MemberDecorationInfo const *memberDecorationsInfo;
+
+  bool isBodySet;
+  StringRef identifier;
+  TypeStorageAllocator *allocator;
 };
 
 StructType
-StructType::get(StringRef identifier, ArrayRef<Type> memberTypes,
+StructType::get(ArrayRef<Type> memberTypes,
                 ArrayRef<StructType::OffsetInfo> offsetInfo,
                 ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
   assert(!memberTypes.empty() && "Struct needs at least one member type");
@@ -1002,18 +1066,29 @@ StructType::get(StringRef identifier, ArrayRef<Type> memberTypes,
       memberDecorations.begin(), memberDecorations.end());
   llvm::array_pod_sort(sortedDecorations.begin(), sortedDecorations.end());
   return Base::get(memberTypes.vec().front().getContext(), TypeKind::Struct,
-                   identifier, memberTypes, offsetInfo, sortedDecorations);
+                   StringRef(), memberTypes, offsetInfo, sortedDecorations);
 }
 
-StructType StructType::getEmpty(MLIRContext *context, StringRef identifier) {
+StructType StructType::getIdentified(MLIRContext *context,
+                                     StringRef identifier) {
+  assert(!identifier.empty() && "Struct identifier must be non-empty string");
   return Base::get(context, TypeKind::Struct, identifier, ArrayRef<Type>(),
                    ArrayRef<StructType::OffsetInfo>(),
                    ArrayRef<StructType::MemberDecorationInfo>());
 }
 
-StringRef StructType::getIdentifier() const {
-  return getImpl()->identifier;
+StructType StructType::getEmpty(MLIRContext *context, StringRef identifier) {
+  StructType newStructType =
+      Base::get(context, TypeKind::Struct, identifier, ArrayRef<Type>(),
+                ArrayRef<StructType::OffsetInfo>(),
+                ArrayRef<StructType::MemberDecorationInfo>());
+  // Set an empty body in case this is a identified struct.
+  newStructType.trySetBody(ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
+                           ArrayRef<StructType::MemberDecorationInfo>());
+  return newStructType;
 }
+
+StringRef StructType::getIdentifier() const { return getImpl()->identifier; }
 
 unsigned StructType::getNumElements() const {
   return getImpl()->getSubclassData();
@@ -1059,6 +1134,13 @@ void StructType::getMemberDecorations(
       return;
     }
   }
+}
+
+LogicalResult
+StructType::trySetBody(ArrayRef<Type> memberTypes,
+                       ArrayRef<OffsetInfo> offsetInfo,
+                       ArrayRef<MemberDecorationInfo> memberDecorations) {
+  return getImpl()->trySetBody(memberTypes, offsetInfo, memberDecorations);
 }
 
 void StructType::getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,

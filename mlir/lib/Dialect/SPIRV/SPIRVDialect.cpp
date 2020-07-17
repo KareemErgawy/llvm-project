@@ -599,15 +599,22 @@ static Type parseStructType(SPIRVDialect const &dialect,
 
   StringRef identifier;
 
-  if (!parser.parseOptionalKeyword(&identifier))
+  if (!parser.parseOptionalKeyword(&identifier)) {
     if (parser.parseComma())
       return Type();
+  }
 
   if (parser.parseLParen())
     return Type();
 
   if (!parser.parseOptionalRParen() && !parser.parseOptionalGreater())
     return StructType::getEmpty(dialect.getContext(), identifier);
+
+  StructType idStructTy;
+
+  if (!identifier.empty()) {
+    idStructTy = StructType::getIdentified(dialect.getContext(), identifier);
+  }
 
   SmallVector<Type, 4> memberTypes;
   SmallVector<StructType::OffsetInfo, 4> offsetInfo;
@@ -636,7 +643,12 @@ static Type parseStructType(SPIRVDialect const &dialect,
   if (parser.parseRParen() || parser.parseGreater())
     return Type();
 
-  return StructType::get(identifier, memberTypes, offsetInfo, memberDecorationInfo);
+  if (!identifier.empty()) {
+    idStructTy.trySetBody(memberTypes, offsetInfo, memberDecorationInfo);
+    return idStructTy;
+  }
+
+  return StructType::get(memberTypes, offsetInfo, memberDecorationInfo);
 }
 
 // spirv-type ::= array-type

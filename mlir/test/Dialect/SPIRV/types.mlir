@@ -355,8 +355,8 @@ func @id_struct_empty(!spv.struct<empty, ()>) -> ()
 
 // -----
 
-// CHECK: func @id_struct_empty(!spv.struct<simple, (f32)>)
-func @id_struct_empty(!spv.struct<simple, (f32)>) -> ()
+// CHECK: func @id_struct_simple(!spv.struct<simple, (f32)>)
+func @id_struct_simple(!spv.struct<simple, (f32)>) -> ()
 
 // -----
 

@@ -45,7 +45,7 @@ createGlobalVarForEntryPointArgument(OpBuilder &builder, spirv::FuncOp funcOp,
     if (!storageClass)
       return nullptr;
     varType =
-        spirv::PointerType::get(spirv::StructType::get("", varType), *storageClass);
+        spirv::PointerType::get(spirv::StructType::get(varType), *storageClass);
   }
   auto varPtrType = varType.cast<spirv::PointerType>();
   auto varPointeeType = varPtrType.getPointeeType().cast<spirv::StructType>();
