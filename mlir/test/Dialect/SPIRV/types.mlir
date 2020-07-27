@@ -380,6 +380,11 @@ func @literal_struct_nested_id(!spv.struct<(!spv.struct<a, ()>)>) -> ()
 
 // -----
 
+// CHECK: func @id_struct_self_recursive(!spv.struct<a, (i32, !spv.ptr<!spv.struct<a>, Uniform>)>)
+func @id_struct_self_recursive(!spv.struct<a, (i32, !spv.ptr<!spv.struct<a>, Uniform>)>) -> ()
+
+// -----
+
 //===----------------------------------------------------------------------===//
 // CooperativeMatrix
 //===----------------------------------------------------------------------===//

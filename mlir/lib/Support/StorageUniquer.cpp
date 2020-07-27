@@ -40,6 +40,30 @@ struct StorageUniquerImpl {
     BaseStorage *storage;
   };
 
+  BaseStorage *lookup(unsigned kind, unsigned hashValue,
+                      function_ref<bool(const BaseStorage *)> isEqual) {
+    LookupKey lookupKey{kind, hashValue, isEqual};
+    if (!threadingIsEnabled)
+      return lookupUnsafe(kind, hashValue, lookupKey);
+
+    // Check for an existing instance in read-only mode.
+    llvm::sys::SmartScopedReader<true> typeLock(mutex);
+    auto it = storageTypes.find_as(lookupKey);
+    if (it != storageTypes.end())
+      return it->storage;
+
+    return nullptr;
+  }
+
+  BaseStorage *lookupUnsafe(unsigned kind, unsigned hashValue,
+                            LookupKey &lookupKey) {
+    auto it = storageTypes.find_as(lookupKey);
+    if (it != storageTypes.end())
+      return it->storage;
+
+    return nullptr;
+  }
+
   /// Get or create an instance of a complex derived type.
   BaseStorage *
   getOrCreate(unsigned kind, unsigned hashValue,
@@ -198,6 +222,12 @@ StorageUniquer::~StorageUniquer() {}
 /// Set the flag specifying if multi-threading is disabled within the uniquer.
 void StorageUniquer::disableMultithreading(bool disable) {
   impl->threadingIsEnabled = !disable;
+}
+
+auto StorageUniquer::lookupImpl(unsigned kind, unsigned hashValue,
+                                function_ref<bool(const BaseStorage *)> isEqual)
+    -> BaseStorage * {
+  return impl->lookup(kind, hashValue, isEqual);
 }
 
 /// Implementation for getting/creating an instance of a derived type with

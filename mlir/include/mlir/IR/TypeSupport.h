@@ -34,7 +34,8 @@ public:
 
   /// This method is used by Dialect objects when they register the list of
   /// types they contain.
-  template <typename T> static AbstractType get(Dialect &dialect) {
+  template <typename T>
+  static AbstractType get(Dialect &dialect) {
     return AbstractType(dialect, T::getInterfaceMap());
   }
 
@@ -44,7 +45,8 @@ public:
   /// Returns an instance of the concept object for the given interface if it
   /// was registered to this type, null otherwise. This should not be used
   /// directly.
-  template <typename T> typename T::Concept *getInterface() const {
+  template <typename T>
+  typename T::Concept *getInterface() const {
     return interfaceMap.lookup<T>();
   }
 
@@ -124,6 +126,12 @@ namespace detail {
 /// MLIRContext. This class manages all creation and uniquing of types.
 struct TypeUniquer {
   /// Get an uniqued instance of a type T.
+  template <typename T, typename... Args>
+  static T lookup(MLIRContext *ctx, unsigned kind, Args &&... args) {
+    return ctx->getTypeUniquer().lookup<typename T::ImplType>(
+        kind, std::forward<Args>(args)...);
+  }
+
   template <typename T, typename... Args>
   static T get(MLIRContext *ctx, unsigned kind, Args &&... args) {
     return ctx->getTypeUniquer().get<typename T::ImplType>(

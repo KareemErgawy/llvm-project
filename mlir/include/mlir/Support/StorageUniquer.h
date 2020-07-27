@@ -107,7 +107,8 @@ public:
   public:
     /// Copy the specified array of elements into memory managed by our bump
     /// pointer allocator.  This assumes the elements are all PODs.
-    template <typename T> ArrayRef<T> copyInto(ArrayRef<T> elements) {
+    template <typename T>
+    ArrayRef<T> copyInto(ArrayRef<T> elements) {
       if (elements.empty())
         return llvm::None;
       auto result = allocator.Allocate<T>(elements.size());
@@ -123,7 +124,10 @@ public:
     }
 
     /// Allocate an instance of the provided type.
-    template <typename T> T *allocate() { return allocator.Allocate<T>(); }
+    template <typename T>
+    T *allocate() {
+      return allocator.Allocate<T>();
+    }
 
     /// Allocate 'size' bytes of 'alignment' aligned memory.
     void *allocate(size_t size, size_t alignment) {
@@ -134,6 +138,24 @@ public:
     /// The raw allocator for type storage objects.
     llvm::BumpPtrAllocator allocator;
   };
+
+  template <typename Storage, typename Arg, typename... Args>
+  Storage *lookup(unsigned kind, Arg &&arg, Args &&... args) {
+    // Construct a value of the derived key type.
+    auto derivedKey =
+        getKey<Storage>(std::forward<Arg>(arg), std::forward<Args>(args)...);
+
+    // Create a hash of the kind and the derived key.
+    unsigned hashValue = getHash<Storage>(kind, derivedKey);
+
+    // Generate an equality function for the derived storage.
+    auto isEqual = [&derivedKey](const BaseStorage *existing) {
+      return static_cast<const Storage &>(*existing) == derivedKey;
+    };
+
+    // Get an instance for the derived storage.
+    return static_cast<Storage *>(lookupImpl(kind, hashValue, isEqual));
+  }
 
   /// Gets a uniqued instance of 'Storage'. 'initFn' is an optional parameter
   /// that can be used to initialize a newly inserted storage instance. This
@@ -215,6 +237,9 @@ public:
   }
 
 private:
+  BaseStorage *lookupImpl(unsigned kind, unsigned hashValue,
+                          function_ref<bool(const BaseStorage *)> isEqual);
+
   /// Implementation for getting/creating an instance of a derived type with
   /// complex storage.
   BaseStorage *getImpl(unsigned kind, unsigned hashValue,

@@ -70,7 +70,8 @@ public:
 
   /// Provide a default implementation of 'classof' that invokes a 'kindof'
   /// method on the concrete type.
-  template <typename T> static bool classof(T val) {
+  template <typename T>
+  static bool classof(T val) {
     static_assert(std::is_convertible<ConcreteT, T>::value,
                   "casting from a non-convertible type");
     return ConcreteT::kindof(val.getKind());
@@ -83,6 +84,14 @@ public:
   }
 
 protected:
+  template <typename... Args>
+  static ConcreteT lookup(MLIRContext *ctx, unsigned kind, Args... args) {
+    // Ensure that the invariants are correct for construction.
+    assert(succeeded(ConcreteT::verifyConstructionInvariants(
+        generateUnknownStorageLocation(ctx), args...)));
+    return UniquerT::template lookup<ConcreteT>(ctx, kind, args...);
+  }
+
   /// Get or create a new ConcreteT instance within the ctx. This
   /// function is guaranteed to return a non null object and will assert if
   /// the arguments provided are invalid.

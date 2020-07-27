@@ -893,6 +893,8 @@ public:
       (*locationMap)[op] = std::make_pair(line, col);
   }
 
+  llvm::SetVector<StringRef> &getStructContext() { return structContext; }
+
 private:
   /// Collection of OpAsm interfaces implemented in the context.
   DialectInterfaceCollection<OpAsmDialectInterface> interfaces;
@@ -905,6 +907,8 @@ private:
 
   /// An optional location map to be populated.
   AsmState::LocationMap *locationMap;
+
+  llvm::SetVector<StringRef> structContext;
 };
 } // end namespace detail
 } // end namespace mlir
@@ -960,6 +964,10 @@ public:
                   function_ref<void(unsigned, bool)> printValueName = nullptr);
   void printAffineConstraint(AffineExpr expr, bool isEq);
   void printIntegerSet(IntegerSet set);
+
+  llvm::SetVector<StringRef> &getStructContext() {
+    return state->getStructContext();
+  }
 
 protected:
   void printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
@@ -1803,6 +1811,9 @@ public:
   /// Print the given type to the stream.
   void printType(Type type) override { printer.printType(type); }
 
+  llvm::SetVector<StringRef> &getStructContext() override {
+    return printer.getStructContext();
+  }
   /// The main module printer.
   ModulePrinter &printer;
 };

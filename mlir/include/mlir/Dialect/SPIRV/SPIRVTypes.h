@@ -325,6 +325,10 @@ public:
                         ArrayRef<OffsetInfo> offsetInfo = {},
                         ArrayRef<MemberDecorationInfo> memberDecorations = {});
 
+  /// Lookup an identified struct.
+  static StructType lookupIdentified(MLIRContext *context,
+                                     StringRef identifier);
+
   /// Construct an identified struct.
   static StructType getIdentified(MLIRContext *context, StringRef identifier);
 

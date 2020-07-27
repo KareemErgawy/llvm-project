@@ -1069,9 +1069,19 @@ StructType::get(ArrayRef<Type> memberTypes,
                    StringRef(), memberTypes, offsetInfo, sortedDecorations);
 }
 
+StructType StructType::lookupIdentified(MLIRContext *context,
+                                        StringRef identifier) {
+  assert(!identifier.empty() && "Struct identifier must be non-empty string");
+
+  return Base::lookup(context, TypeKind::Struct, identifier, ArrayRef<Type>(),
+                      ArrayRef<StructType::OffsetInfo>(),
+                      ArrayRef<StructType::MemberDecorationInfo>());
+}
+
 StructType StructType::getIdentified(MLIRContext *context,
                                      StringRef identifier) {
   assert(!identifier.empty() && "Struct identifier must be non-empty string");
+
   return Base::get(context, TypeKind::Struct, identifier, ArrayRef<Type>(),
                    ArrayRef<StructType::OffsetInfo>(),
                    ArrayRef<StructType::MemberDecorationInfo>());

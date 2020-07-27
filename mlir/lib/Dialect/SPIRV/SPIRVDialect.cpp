@@ -599,7 +599,16 @@ static Type parseStructType(SPIRVDialect const &dialect,
 
   StringRef identifier;
 
+  // Check if this is an indeitifed struct
   if (!parser.parseOptionalKeyword(&identifier)) {
+    // Check if this is a possible recursive reference
+    if (!parser.parseOptionalGreater()) {
+      StructType lookupResult =
+          StructType::lookupIdentified(dialect.getContext(), identifier);
+
+      return lookupResult;
+    }
+
     if (parser.parseComma())
       return Type();
   }
@@ -622,6 +631,7 @@ static Type parseStructType(SPIRVDialect const &dialect,
 
   do {
     Type memberType;
+
     if (parser.parseType(memberType))
       return Type();
     memberTypes.push_back(memberType);
@@ -715,8 +725,17 @@ static void print(ImageType type, DialectAsmPrinter &os) {
 static void print(StructType type, DialectAsmPrinter &os) {
   os << "struct<";
 
-  if (!type.getIdentifier().empty())
-    os << type.getIdentifier() << ", ";
+  if (!type.getIdentifier().empty()) {
+    os << type.getIdentifier();
+
+    if (os.getStructContext().count(type.getIdentifier()) == 0) {
+      os << ", ";
+      os.getStructContext().insert(type.getIdentifier());
+    } else {
+      os << ">";
+      return;
+    }
+  }
 
   os << "(";
 
@@ -781,6 +800,7 @@ void SPIRVDialect::printType(Type type, DialectAsmPrinter &os) const {
     print(type.cast<MatrixType>(), os);
     return;
   default:
+    llvm::errs() << "+++ kind: " << type.getKind() << "\n";
     llvm_unreachable("unhandled SPIR-V type");
   }
 }

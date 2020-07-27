@@ -36,10 +36,10 @@ func @store(%arg0 : f32) -> () {
   return
 }
 
-func @store_composite(%arg0 : !spv.struct<f64>) -> () {
-  %0 = spv.Variable : !spv.ptr<!spv.struct<f64>, Function>
+func @store_composite(%arg0 : !spv.struct<(f64)>) -> () {
+  %0 = spv.Variable : !spv.ptr<!spv.struct<(f64)>, Function>
   // CHECK: llvm.store %{{.*}}, %{{.*}} : !llvm<"<{ double }>*">
-  spv.Store "Function" %0, %arg0 : !spv.struct<f64>
+  spv.Store "Function" %0, %arg0 : !spv.struct<(f64)>
   return
 }
 
