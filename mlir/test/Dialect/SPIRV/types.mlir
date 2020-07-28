@@ -385,6 +385,29 @@ func @id_struct_self_recursive(!spv.struct<a, (i32, !spv.ptr<!spv.struct<a>, Uni
 
 // -----
 
+// expected-error @+1 {{recursive struct reference not nested in struct definition}}
+func @id_wrong_recursive_reference(!spv.struct<a>) -> ()
+
+// -----
+
+// expected-error @+1 {{recursive struct reference not nested in struct definition}}
+func @id_struct_recursive_invalid(!spv.struct<a, (!spv.ptr<!spv.struct<b>, Uniform>)>) -> ()
+
+// -----
+
+// Equivalent to:
+//   struct a { struct b *bPtr; };
+//   struct b { struct a *aPtr, struct b *bPtr };
+// CHECK: func @id_struct_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>)>, Uniform>)>)
+func @id_struct_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>)>, Uniform>)>) -> ()
+
+// -----
+
+// CHECK: func @id_struct_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>, !spv.ptr<!spv.struct<b>, Uniform>)>, Uniform>)>)
+func @id_struct_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>, !spv.ptr<!spv.struct<b>, Uniform>)>, Uniform>)>) -> ()
+
+// -----
+
 //===----------------------------------------------------------------------===//
 // CooperativeMatrix
 //===----------------------------------------------------------------------===//

@@ -599,10 +599,16 @@ static Type parseStructType(SPIRVDialect const &dialect,
 
   StringRef identifier;
 
-  // Check if this is an indeitifed struct
-  if (!parser.parseOptionalKeyword(&identifier)) {
+  // Check if this is an idenitifed struct
+  if (succeeded(parser.parseOptionalKeyword(&identifier))) {
     // Check if this is a possible recursive reference
-    if (!parser.parseOptionalGreater()) {
+    if (succeeded(parser.parseOptionalGreater())) {
+      if (parser.getStructContext().count(identifier) == 0) {
+        parser.emitError(
+            parser.getNameLoc(),
+            "recursive struct reference not nested in struct definition");
+      }
+
       StructType lookupResult =
           StructType::lookupIdentified(dialect.getContext(), identifier);
 
@@ -611,6 +617,8 @@ static Type parseStructType(SPIRVDialect const &dialect,
 
     if (parser.parseComma())
       return Type();
+
+    parser.getStructContext().insert(identifier);
   }
 
   if (parser.parseLParen())
@@ -655,6 +663,7 @@ static Type parseStructType(SPIRVDialect const &dialect,
 
   if (!identifier.empty()) {
     idStructTy.trySetBody(memberTypes, offsetInfo, memberDecorationInfo);
+    parser.getStructContext().remove(identifier);
     return idStructTy;
   }
 
@@ -763,6 +772,10 @@ static void print(StructType type, DialectAsmPrinter &os) {
   llvm::interleaveComma(llvm::seq<unsigned>(0, type.getNumElements()), os,
                         printMember);
   os << ")>";
+
+  if (!type.getIdentifier().empty()) {
+    os.getStructContext().remove(type.getIdentifier());
+  }
 }
 
 static void print(CooperativeMatrixNVType type, DialectAsmPrinter &os) {

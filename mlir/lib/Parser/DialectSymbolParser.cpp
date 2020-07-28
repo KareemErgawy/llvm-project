@@ -297,6 +297,10 @@ public:
     return parser.parseDimensionListRanked(dimensions, allowDynamic);
   }
 
+  llvm::SetVector<StringRef> &getStructContext() override {
+    return parser.getStructContext();
+  }
+
 private:
   /// The full symbol specification.
   StringRef fullSpec;

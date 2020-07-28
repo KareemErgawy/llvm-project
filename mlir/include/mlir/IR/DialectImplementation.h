@@ -340,6 +340,8 @@ public:
   ///   static-dimension-list ::= (integer `x`)*
   virtual ParseResult parseDimensionList(SmallVectorImpl<int64_t> &dimensions,
                                          bool allowDynamic = true) = 0;
+
+  virtual llvm::SetVector<StringRef> &getStructContext() = 0;
 };
 
 } // end namespace mlir

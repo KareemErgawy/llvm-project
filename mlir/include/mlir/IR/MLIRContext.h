@@ -10,6 +10,7 @@
 #define MLIR_IR_MLIRCONTEXT_H
 
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/SetVector.h"
 #include <functional>
 #include <memory>
 #include <vector>
@@ -45,7 +46,8 @@ public:
 
   /// Get a registered IR dialect for the given derived dialect type. The
   /// derived type must provide a static 'getDialectNamespace' method.
-  template <typename T> T *getRegisteredDialect() {
+  template <typename T>
+  T *getRegisteredDialect() {
     return static_cast<T *>(getRegisteredDialect(T::getDialectNamespace()));
   }
 
@@ -105,6 +107,8 @@ public:
   /// Returns the storage uniquer used for constructing attribute storage
   /// instances. This should not be used directly.
   StorageUniquer &getAttributeUniquer();
+
+  llvm::SetVector<StringRef> &getStructContext();
 
 private:
   const std::unique_ptr<MLIRContextImpl> impl;
