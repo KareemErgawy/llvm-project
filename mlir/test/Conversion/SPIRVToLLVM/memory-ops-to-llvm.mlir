@@ -13,9 +13,9 @@ spv.module Logical GLSL450 {
   //       CHECK: llvm.mlir.global private @struct() : !llvm.struct<packed (float, array<10 x float>)>
   // CHECK-LABEL: @func
   //       CHECK: llvm.mlir.addressof @struct : !llvm.ptr<struct<packed (float, array<10 x float>)>>
-  spv.globalVariable @struct : !spv.ptr<!spv.struct<f32, !spv.array<10xf32>>, Private>
+  spv.globalVariable @struct : !spv.ptr<!spv.struct<(f32, !spv.array<10xf32>)>, Private>
   spv.func @func() -> () "None" {
-    %0 = spv._address_of @struct : !spv.ptr<!spv.struct<f32, !spv.array<10xf32>>, Private>
+    %0 = spv._address_of @struct : !spv.ptr<!spv.struct<(f32, !spv.array<10xf32>)>, Private>
     spv.Return
   }
 }

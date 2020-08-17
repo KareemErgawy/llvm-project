@@ -875,7 +875,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     }
 
     isBodySet = true;
-    setSubclassData(memberTypes.size());
+    numMembers = memberTypes.size();
 
     // Copy the member type and layout information into the bump pointer
     if (!memberTypes.empty()) {

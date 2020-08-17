@@ -43,30 +43,6 @@ struct InstSpecificUniquer {
     BaseStorage *storage;
   };
 
-  BaseStorage *lookup(unsigned kind, unsigned hashValue,
-                      function_ref<bool(const BaseStorage *)> isEqual) {
-    LookupKey lookupKey{kind, hashValue, isEqual};
-    if (!threadingIsEnabled)
-      return lookupUnsafe(kind, hashValue, lookupKey);
-
-    // Check for an existing instance in read-only mode.
-    llvm::sys::SmartScopedReader<true> typeLock(mutex);
-    auto it = storageTypes.find_as(lookupKey);
-    if (it != storageTypes.end())
-      return it->storage;
-
-    return nullptr;
-  }
-
-  BaseStorage *lookupUnsafe(unsigned kind, unsigned hashValue,
-                            LookupKey &lookupKey) {
-    auto it = storageTypes.find_as(lookupKey);
-    if (it != storageTypes.end())
-      return it->storage;
-
-    return nullptr;
-  }
-
   /// Storage info for derived TypeStorage objects.
   struct StorageKeyInfo : DenseMapInfo<HashedStorage> {
     static HashedStorage getEmptyKey() {
@@ -114,6 +90,32 @@ namespace detail {
 struct StorageUniquerImpl {
   using BaseStorage = StorageUniquer::BaseStorage;
   using StorageAllocator = StorageUniquer::StorageAllocator;
+
+  BaseStorage *lookup(TypeID id, unsigned kind, unsigned hashValue,
+                      function_ref<bool(const BaseStorage *)> isEqual) {
+    InstSpecificUniquer::LookupKey lookupKey{kind, hashValue, isEqual};
+    InstSpecificUniquer &storageUniquer = *instUniquers[id];
+    if (!threadingIsEnabled)
+      return lookupUnsafe(storageUniquer, kind, hashValue, lookupKey);
+
+    // Check for an existing instance in read-only mode.
+    llvm::sys::SmartScopedReader<true> typeLock(storageUniquer.mutex);
+    auto it = storageUniquer.complexInstances.find_as(lookupKey);
+    if (it != storageUniquer.complexInstances.end())
+      return it->storage;
+
+    return nullptr;
+  }
+
+  BaseStorage *lookupUnsafe(InstSpecificUniquer &storageUniquer, unsigned kind,
+                            unsigned hashValue,
+                            InstSpecificUniquer::LookupKey &lookupKey) {
+    auto it = storageUniquer.complexInstances.find_as(lookupKey);
+    if (it != storageUniquer.complexInstances.end())
+      return it->storage;
+
+    return nullptr;
+  }
 
   /// Get or create an instance of a complex derived type.
   BaseStorage *
@@ -253,10 +255,11 @@ void StorageUniquer::disableMultithreading(bool disable) {
   impl->threadingIsEnabled = !disable;
 }
 
-auto StorageUniquer::lookupImpl(unsigned kind, unsigned hashValue,
+auto StorageUniquer::lookupImpl(const TypeID &id, unsigned kind,
+                                unsigned hashValue,
                                 function_ref<bool(const BaseStorage *)> isEqual)
     -> BaseStorage * {
-  return impl->lookup(kind, hashValue, isEqual);
+  return impl->lookup(id, kind, hashValue, isEqual);
 }
 
 /// Register a new storage object with this uniquer using the given unique type

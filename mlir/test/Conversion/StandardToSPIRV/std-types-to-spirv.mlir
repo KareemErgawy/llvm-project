@@ -519,16 +519,16 @@ module attributes {
 } {
 
 // CHECK-LABEL: func @memref_vector
-// CHECK-SAME: !spv.ptr<!spv.struct<!spv.array<4 x vector<2xf32>, stride=8> [0]>, StorageBuffer>
-// CHECK-SAME: !spv.ptr<!spv.struct<!spv.array<4 x vector<4xf32>, stride=16> [0]>, Uniform>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<4 x vector<2xf32>, stride=8> [0])>, StorageBuffer>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<4 x vector<4xf32>, stride=16> [0])>, Uniform>
 func @memref_vector(
     %arg0: memref<4xvector<2xf32>, 0>,
     %arg1: memref<4xvector<4xf32>, 4>)
 { return }
 
 // CHECK-LABEL: func @dynamic_dim_memref_vector
-// CHECK-SAME: !spv.ptr<!spv.struct<!spv.rtarray<vector<4xi32>, stride=16> [0]>, StorageBuffer>
-// CHECK-SAME: !spv.ptr<!spv.struct<!spv.rtarray<vector<2xf32>, stride=8> [0]>, StorageBuffer>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.rtarray<vector<4xi32>, stride=16> [0])>, StorageBuffer>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.rtarray<vector<2xf32>, stride=8> [0])>, StorageBuffer>
 func @dynamic_dim_memref_vector(%arg0: memref<8x?xvector<4xi32>>,
                          %arg1: memref<?x?xvector<2xf32>>)
 { return }

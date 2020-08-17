@@ -127,7 +127,7 @@ struct TypeUniquer {
   template <typename T, typename... Args>
   static T lookup(MLIRContext *ctx, unsigned kind, Args &&... args) {
     return ctx->getTypeUniquer().lookup<typename T::ImplType>(
-        kind, std::forward<Args>(args)...);
+        T::getTypeID(), kind, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>

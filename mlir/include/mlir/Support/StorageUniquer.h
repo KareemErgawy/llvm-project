@@ -150,7 +150,7 @@ public:
   };
 
   template <typename Storage, typename Arg, typename... Args>
-  Storage *lookup(unsigned kind, Arg &&arg, Args &&... args) {
+  Storage *lookup(const TypeID &id, unsigned kind, Arg &&arg, Args &&... args) {
     // Construct a value of the derived key type.
     auto derivedKey =
         getKey<Storage>(std::forward<Arg>(arg), std::forward<Args>(args)...);
@@ -164,7 +164,7 @@ public:
     };
 
     // Get an instance for the derived storage.
-    return static_cast<Storage *>(lookupImpl(kind, hashValue, isEqual));
+    return static_cast<Storage *>(lookupImpl(id, kind, hashValue, isEqual));
   }
 
   /// Gets a uniqued instance of 'Storage'. 'initFn' is an optional parameter
@@ -249,7 +249,7 @@ public:
   }
 
 private:
-  BaseStorage *lookupImpl(unsigned kind, unsigned hashValue,
+  BaseStorage *lookupImpl(const TypeID &id, unsigned kind, unsigned hashValue,
                           function_ref<bool(const BaseStorage *)> isEqual);
 
   /// Implementation for getting/creating an instance of a derived type with
