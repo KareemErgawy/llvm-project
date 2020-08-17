@@ -1234,7 +1234,13 @@ static bool shouldSkip(BaseCommand *cmd) {
 static std::vector<BaseCommand *>::iterator
 findOrphanPos(std::vector<BaseCommand *>::iterator b,
               std::vector<BaseCommand *>::iterator e) {
+  // OutputSections without the SHF_ALLOC flag are not part of the memory image
+  // and their addresses usually don't matter. Place any orphan sections without
+  // the SHF_ALLOC flag at the end so that these do not affect the address
+  // assignment of OutputSections with the SHF_ALLOC flag.
   OutputSection *sec = cast<OutputSection>(*e);
+  if (!(sec->flags & SHF_ALLOC))
+    return e;
 
   // Find the first element that has as close a rank as possible.
   auto i = std::max_element(b, e, [=](BaseCommand *a, BaseCommand *b) {
@@ -1431,6 +1437,14 @@ static void sortSection(OutputSection *sec,
   if (name == ".init" || name == ".fini")
     return;
 
+  // IRelative relocations that usually live in the .rel[a].dyn section should
+  // be proccessed last by the dynamic loader. To achieve that we add synthetic
+  // sections in the required order from the begining so that the in.relaIplt
+  // section is placed last in an output section. Here we just do not apply
+  // sorting for an output section which holds the in.relaIplt section.
+  if (in.relaIplt->getParent() == sec)
+    return;
+
   // Sort input sections by priority using the list provided by
   // --symbol-ordering-file or --shuffle-sections=. This is a least significant
   // digit radix sort. The sections may be sorted stably again by a more
@@ -1606,6 +1620,9 @@ template <class ELFT> void Writer<ELFT>::sortSections() {
 static bool compareByFilePosition(InputSection *a, InputSection *b) {
   InputSection *la = a->getLinkOrderDep();
   InputSection *lb = b->getLinkOrderDep();
+  // SHF_LINK_ORDER sections with non-zero sh_link are ordered before others.
+  if (!la || !lb)
+    return la && !lb;
   OutputSection *aOut = la->getParent();
   OutputSection *bOut = lb->getParent();
 
@@ -1646,7 +1663,7 @@ template <class ELFT> void Writer<ELFT>::resolveShfLinkOrder() {
             sections.push_back(isec);
 
             InputSection *link = isec->getLinkOrderDep();
-            if (!link->getParent())
+            if (link && !link->getParent())
               error(toString(isec) + ": sh_link points to discarded section " +
                     toString(link));
           }
@@ -2326,8 +2343,6 @@ std::vector<PhdrEntry *> Writer<ELFT>::createPhdrs(Partition &part) {
   }
 
   for (OutputSection *sec : outputSections) {
-    if (!(sec->flags & SHF_ALLOC))
-      break;
     if (!needsPtLoad(sec))
       continue;
 
@@ -2547,11 +2562,24 @@ static uint64_t setFileOffset(OutputSection *os, uint64_t off) {
 }
 
 template <class ELFT> void Writer<ELFT>::assignFileOffsetsBinary() {
-  uint64_t off = 0;
+  // Compute the minimum LMA of all non-empty non-NOBITS sections as minAddr.
+  auto needsOffset = [](OutputSection &sec) {
+    return sec.type != SHT_NOBITS && (sec.flags & SHF_ALLOC) && sec.size > 0;
+  };
+  uint64_t minAddr = UINT64_MAX;
   for (OutputSection *sec : outputSections)
-    if (sec->flags & SHF_ALLOC)
-      off = setFileOffset(sec, off);
-  fileSize = alignTo(off, config->wordsize);
+    if (needsOffset(*sec)) {
+      sec->offset = sec->getLMA();
+      minAddr = std::min(minAddr, sec->offset);
+    }
+
+  // Sections are laid out at LMA minus minAddr.
+  fileSize = 0;
+  for (OutputSection *sec : outputSections)
+    if (needsOffset(*sec)) {
+      sec->offset -= minAddr;
+      fileSize = std::max(fileSize, sec->offset + sec->size);
+    }
 }
 
 static std::string rangeToString(uint64_t addr, uint64_t len) {

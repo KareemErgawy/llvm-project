@@ -69,14 +69,15 @@ Symbol *SymbolTable::addUndefined(StringRef name) {
   return s;
 }
 
-Symbol *SymbolTable::addDylib(StringRef name, DylibFile *file, bool isWeakDef) {
+Symbol *SymbolTable::addDylib(StringRef name, DylibFile *file, bool isWeakDef,
+                              bool isTlv) {
   Symbol *s;
   bool wasInserted;
   std::tie(s, wasInserted) = insert(name);
 
   if (wasInserted || isa<Undefined>(s) ||
       (isa<DylibSymbol>(s) && !isWeakDef && s->isWeakDef()))
-    replaceSymbol<DylibSymbol>(s, file, name, isWeakDef);
+    replaceSymbol<DylibSymbol>(s, file, name, isWeakDef, isTlv);
 
   return s;
 }
@@ -91,6 +92,19 @@ Symbol *SymbolTable::addLazy(StringRef name, ArchiveFile *file,
     replaceSymbol<LazySymbol>(s, file, sym);
   else if (isa<Undefined>(s) || (isa<DylibSymbol>(s) && s->isWeakDef()))
     file->fetch(sym);
+  return s;
+}
+
+Symbol *SymbolTable::addDSOHandle(const MachHeaderSection *header) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(DSOHandle::name);
+  if (!wasInserted) {
+    if (auto *defined = dyn_cast<Defined>(s))
+      error("found defined symbol from " + defined->isec->file->getName() +
+            " with illegal name " + DSOHandle::name);
+  }
+  replaceSymbol<DSOHandle>(s, header);
   return s;
 }
 

@@ -86,6 +86,25 @@ def AssertAPI : PublicAPI<"assert.h"> {
   ];
 }
 
+def CTypeAPI : PublicAPI<"ctype.h"> {
+  let Functions = [
+    "isalnum",
+    "isalpha",
+    "isblank",
+    "iscntrl",
+    "isdigit",
+    "isgraph",
+    "islower",
+    "isprint",
+    "ispunct",
+    "isspace",
+    "isupper",
+    "isxdigit",
+    "tolower",
+    "toupper",
+  ];
+}
+
 def MathErrHandlingMacro : MacroDef<"math_errhandling"> {
   let Defn = [{
     #ifndef math_errhandling
@@ -217,6 +236,7 @@ def StringAPI : PublicAPI<"string.h"> {
     "strspn",
     "strstr",
     "strtok",
+    "strtok_r",
     "strxfrm",   
   ];
 

@@ -233,11 +233,7 @@ private:
 
   template <bool IsSigned>
   bool SelectFlatOffset(SDNode *N, SDValue Addr, SDValue &VAddr,
-                        SDValue &Offset, SDValue &SLC) const;
-  bool SelectFlatAtomic(SDNode *N, SDValue Addr, SDValue &VAddr,
-                        SDValue &Offset, SDValue &SLC) const;
-  bool SelectFlatAtomicSigned(SDNode *N, SDValue Addr, SDValue &VAddr,
-                              SDValue &Offset, SDValue &SLC) const;
+                        SDValue &Offset) const;
 
   bool SelectSMRDOffset(SDValue ByteOffsetNode, SDValue &Offset,
                         bool &Imm) const;
@@ -716,8 +712,7 @@ void AMDGPUDAGToDAGISel::Select(SDNode *N) {
       (Opc == AMDGPUISD::ATOMIC_INC || Opc == AMDGPUISD::ATOMIC_DEC ||
        Opc == ISD::ATOMIC_LOAD_FADD ||
        Opc == AMDGPUISD::ATOMIC_LOAD_FMIN ||
-       Opc == AMDGPUISD::ATOMIC_LOAD_FMAX ||
-       Opc == AMDGPUISD::ATOMIC_LOAD_CSUB)) {
+       Opc == AMDGPUISD::ATOMIC_LOAD_FMAX)) {
     N = glueCopyToM0LDSInit(N);
     SelectCode(N);
     return;
@@ -1663,8 +1658,7 @@ template <bool IsSigned>
 bool AMDGPUDAGToDAGISel::SelectFlatOffset(SDNode *N,
                                           SDValue Addr,
                                           SDValue &VAddr,
-                                          SDValue &Offset,
-                                          SDValue &SLC) const {
+                                          SDValue &Offset) const {
   int64_t OffsetVal = 0;
 
   if (Subtarget->hasFlatInstOffsets() &&
@@ -1753,24 +1747,7 @@ bool AMDGPUDAGToDAGISel::SelectFlatOffset(SDNode *N,
 
   VAddr = Addr;
   Offset = CurDAG->getTargetConstant(OffsetVal, SDLoc(), MVT::i16);
-  SLC = CurDAG->getTargetConstant(0, SDLoc(), MVT::i1);
   return true;
-}
-
-bool AMDGPUDAGToDAGISel::SelectFlatAtomic(SDNode *N,
-                                          SDValue Addr,
-                                          SDValue &VAddr,
-                                          SDValue &Offset,
-                                          SDValue &SLC) const {
-  return SelectFlatOffset<false>(N, Addr, VAddr, Offset, SLC);
-}
-
-bool AMDGPUDAGToDAGISel::SelectFlatAtomicSigned(SDNode *N,
-                                                SDValue Addr,
-                                                SDValue &VAddr,
-                                                SDValue &Offset,
-                                                SDValue &SLC) const {
-  return SelectFlatOffset<true>(N, Addr, VAddr, Offset, SLC);
 }
 
 bool AMDGPUDAGToDAGISel::SelectSMRDOffset(SDValue ByteOffsetNode,

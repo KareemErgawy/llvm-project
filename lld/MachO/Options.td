@@ -156,7 +156,6 @@ def grp_content : OptionGroup<"content">, HelpText<"ADDITIONAL CONTENT">;
 def sectcreate : MultiArg<["-"], "sectcreate", 3>,
      MetaVarName<"<segment> <section> <file>">,
      HelpText<"Create <section> in <segment> from the contents of <file>">,
-     Flags<[HelpHidden]>,
      Group<grp_content>;
 def segcreate : MultiArg<["-"], "segcreate", 3>,
      MetaVarName<"<segment> <section> <file>">,
@@ -411,7 +410,6 @@ def undefined : Separate<["-"], "undefined">,
 def rpath : Separate<["-"], "rpath">,
      MetaVarName<"<path>">,
      HelpText<"Add <path> to dyld search list for dylibs with load path prefix `@rpath/'">,
-     Flags<[HelpHidden]>,
      Group<grp_resolve>;
 def commons : Separate<["-"], "commons">,
      MetaVarName<"<treatment>">,
@@ -693,7 +691,6 @@ def umbrella : Separate<["-"], "umbrella">,
 def headerpad : Separate<["-"], "headerpad">,
      MetaVarName<"<size>">,
      HelpText<"Allocate hex <size> extra space for future expansion of the load commands via install_name_tool">,
-     Flags<[HelpHidden]>,
      Group<grp_rare>;
 def headerpad_max_install_names : Flag<["-"], "headerpad_max_install_names">,
      HelpText<"Allocate extra space so all load-command paths can expand to MAXPATHLEN via install_name_tool">,
