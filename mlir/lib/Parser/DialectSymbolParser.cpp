@@ -308,6 +308,10 @@ public:
     return parser.parseDimensionListRanked(dimensions, allowDynamic);
   }
 
+  llvm::SetVector<StringRef> &getStructContext() override {
+    return parser.getStructContext();
+  }
+
   OptionalParseResult parseOptionalType(Type &result) override {
     return parser.parseOptionalType(result);
   }

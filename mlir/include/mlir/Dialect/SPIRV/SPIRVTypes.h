@@ -302,8 +302,17 @@ public:
                         ArrayRef<OffsetInfo> offsetInfo = {},
                         ArrayRef<MemberDecorationInfo> memberDecorations = {});
 
-  /// Construct a struct with no members.
-  static StructType getEmpty(MLIRContext *context);
+  /// Lookup an identified struct.
+  static StructType lookupIdentified(MLIRContext *context,
+                                     StringRef identifier);
+
+  /// Construct an identified struct.
+  static StructType getIdentified(MLIRContext *context, StringRef identifier);
+
+  /// Construct a (possibly identified) struct with no members.
+  static StructType getEmpty(MLIRContext *context, StringRef identifier = "");
+
+  StringRef getIdentifier() const;
 
   unsigned getNumElements() const;
 
@@ -345,6 +354,10 @@ public:
   void getMemberDecorations(unsigned i,
                             SmallVectorImpl<StructType::MemberDecorationInfo>
                                 &decorationsInfo) const;
+
+  LogicalResult
+  trySetBody(ArrayRef<Type> memberTypes, ArrayRef<OffsetInfo> offsetInfo = {},
+             ArrayRef<MemberDecorationInfo> memberDecorations = {});
 
   void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                      Optional<StorageClass> storage = llvm::None);

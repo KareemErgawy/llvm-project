@@ -11,6 +11,7 @@
 
 #include "Lexer.h"
 #include "mlir/IR/Attributes.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringMap.h"
 
 namespace mlir {
@@ -62,6 +63,10 @@ struct ParserState {
   }
   ParserState(const ParserState &) = delete;
   void operator=(const ParserState &) = delete;
+
+  llvm::SetVector<StringRef> &getStructContext() {
+    return context->getStructContext();
+  }
 
   /// The context we're parsing into.
   MLIRContext *const context;

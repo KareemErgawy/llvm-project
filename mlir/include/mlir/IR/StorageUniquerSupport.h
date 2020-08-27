@@ -82,6 +82,14 @@ public:
     return detail::InterfaceMap::template get<Traits<ConcreteT>...>();
   }
 
+  template <typename... Args>
+  static ConcreteT lookup(MLIRContext *ctx, Args... args) {
+    // Ensure that the invariants are correct for construction.
+    assert(succeeded(ConcreteT::verifyConstructionInvariants(
+        generateUnknownStorageLocation(ctx), args...)));
+    return UniquerT::template lookup<ConcreteT>(ctx, args...);
+  }
+
   /// Get or create a new ConcreteT instance within the ctx. This
   /// function is guaranteed to return a non null object and will assert if
   /// the arguments provided are invalid.

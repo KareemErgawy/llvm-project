@@ -1071,6 +1071,8 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
     return processTypeDecoration(loc, runtimeArrayType, resultID);
   }
 
+  // TODO Make sure to handle identified structs properly. The identifier will
+  // probably be a decoration.
   if (auto structType = type.dyn_cast<spirv::StructType>()) {
     bool hasOffset = structType.hasOffset();
     for (auto elementIndex :

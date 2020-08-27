@@ -11,6 +11,7 @@
 
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/TypeID.h"
+#include "llvm/ADT/SetVector.h"
 #include <functional>
 #include <memory>
 #include <vector>
@@ -155,6 +156,8 @@ public:
   /// Returns the storage uniquer used for constructing attribute storage
   /// instances. This should not be used directly.
   StorageUniquer &getAttributeUniquer();
+
+  llvm::SetVector<StringRef> &getStructContext();
 
   /// These APIs are tracking whether the context will be used in a
   /// multithreading environment: this has no effect other than enabling

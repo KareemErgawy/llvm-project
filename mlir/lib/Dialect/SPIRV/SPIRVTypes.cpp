@@ -760,24 +760,45 @@ Optional<int64_t> SPIRVType::getSizeInBytes() {
 //===----------------------------------------------------------------------===//
 
 struct spirv::detail::StructTypeStorage : public TypeStorage {
-  StructTypeStorage(
-      unsigned numMembers, Type const *memberTypes,
-      StructType::OffsetInfo const *layoutInfo, unsigned numMemberDecorations,
-      StructType::MemberDecorationInfo const *memberDecorationsInfo)
-      : memberTypes(memberTypes), offsetInfo(layoutInfo),
-        numMembers(numMembers), numMemberDecorations(numMemberDecorations),
-        memberDecorationsInfo(memberDecorationsInfo) {}
+ StructTypeStorage(StringRef identifier, TypeStorageAllocator &allocator)
+     : memberTypes(nullptr), offsetInfo(nullptr), numMemberDecorations(0),
+       memberDecorationsInfo(nullptr), isBodySet(false),
+       identifier(identifier), allocator(&allocator) {}
 
-  using KeyTy = std::tuple<ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
-                           ArrayRef<StructType::MemberDecorationInfo>>;
-  bool operator==(const KeyTy &key) const {
-    return key ==
-           KeyTy(getMemberTypes(), getOffsetInfo(), getMemberDecorationsInfo());
+ StructTypeStorage(
+     unsigned numMembers, Type const *memberTypes,
+     StructType::OffsetInfo const *layoutInfo, unsigned numMemberDecorations,
+     StructType::MemberDecorationInfo const *memberDecorationsInfo)
+     : memberTypes(memberTypes), offsetInfo(layoutInfo), numMembers(numMembers),
+       numMemberDecorations(numMemberDecorations),
+       memberDecorationsInfo(memberDecorationsInfo), isBodySet(false),
+       identifier(StringRef()), allocator(nullptr) {}
+
+ using KeyTy =
+     std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
+                ArrayRef<StructType::MemberDecorationInfo>>;
+
+ bool operator==(const KeyTy &key) const {
+   if (isIdentified())
+     // Identified types are uniqued by their identifier.
+     return getIdentifier() == std::get<0>(key);
+   else
+     return key == KeyTy(StringRef(), getMemberTypes(), getOffsetInfo(),
+                         getMemberDecorationsInfo());
   }
 
   static StructTypeStorage *construct(TypeStorageAllocator &allocator,
                                       const KeyTy &key) {
-    ArrayRef<Type> keyTypes = std::get<0>(key);
+    StringRef keyIdentifier = std::get<0>(key);
+
+    if (!keyIdentifier.empty()) {
+      StringRef identifier = allocator.copyInto(keyIdentifier);
+
+      return new (allocator.allocate<StructTypeStorage>())
+          StructTypeStorage(identifier, allocator);
+    }
+
+    ArrayRef<Type> keyTypes = std::get<1>(key);
 
     // Copy the member type and layout information into the bump pointer
     const Type *typesList = nullptr;
@@ -786,8 +807,8 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     }
 
     const StructType::OffsetInfo *offsetInfoList = nullptr;
-    if (!std::get<1>(key).empty()) {
-      ArrayRef<StructType::OffsetInfo> keyOffsetInfo = std::get<1>(key);
+    if (!std::get<2>(key).empty()) {
+      ArrayRef<StructType::OffsetInfo> keyOffsetInfo = std::get<2>(key);
       assert(keyOffsetInfo.size() == keyTypes.size() &&
              "size of offset information must be same as the size of number of "
              "elements");
@@ -796,11 +817,12 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
 
     const StructType::MemberDecorationInfo *memberDecorationList = nullptr;
     unsigned numMemberDecorations = 0;
-    if (!std::get<2>(key).empty()) {
-      auto keyMemberDecorations = std::get<2>(key);
+    if (!std::get<3>(key).empty()) {
+      auto keyMemberDecorations = std::get<3>(key);
       numMemberDecorations = keyMemberDecorations.size();
       memberDecorationList = allocator.copyInto(keyMemberDecorations).data();
     }
+
     return new (allocator.allocate<StructTypeStorage>())
         StructTypeStorage(keyTypes.size(), typesList, offsetInfoList,
                           numMemberDecorations, memberDecorationList);
@@ -825,11 +847,53 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     return {};
   }
 
+  StringRef getIdentifier() const { return identifier; }
+
+  bool isIdentified() const { return !identifier.empty(); }
+
+  bool hasBody() const { return memberTypes == nullptr; }
+
+  LogicalResult
+  trySetBody(ArrayRef<Type> memberTypes,
+             ArrayRef<StructType::OffsetInfo> offsetInfo,
+             ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
+    if (isBodySet > 0) {
+      return failure();
+    }
+
+    isBodySet = true;
+    numMembers = memberTypes.size();
+
+    // Copy the member type and layout information into the bump pointer
+    if (!memberTypes.empty()) {
+      this->memberTypes = allocator->copyInto(memberTypes).data();
+    }
+
+    if (!offsetInfo.empty()) {
+      assert(offsetInfo.size() == memberTypes.size() &&
+             "size of offset information must be same as the size of number of "
+             "elements");
+      this->offsetInfo = allocator->copyInto(offsetInfo).data();
+    }
+
+    if (!memberDecorations.empty()) {
+      this->numMemberDecorations = memberDecorations.size();
+      this->memberDecorationsInfo =
+          allocator->copyInto(memberDecorations).data();
+    }
+
+    return success();
+  }
+
   Type const *memberTypes;
   StructType::OffsetInfo const *offsetInfo;
   unsigned numMembers;
   unsigned numMemberDecorations;
   StructType::MemberDecorationInfo const *memberDecorationsInfo;
+
+  bool isBodySet;
+  StringRef identifier;
+  TypeStorageAllocator *allocator;
 };
 
 StructType
@@ -841,15 +905,40 @@ StructType::get(ArrayRef<Type> memberTypes,
   SmallVector<StructType::MemberDecorationInfo, 4> sortedDecorations(
       memberDecorations.begin(), memberDecorations.end());
   llvm::array_pod_sort(sortedDecorations.begin(), sortedDecorations.end());
-  return Base::get(memberTypes.vec().front().getContext(), memberTypes,
-                   offsetInfo, sortedDecorations);
+  return Base::get(memberTypes.vec().front().getContext(), StringRef(),
+                   memberTypes, offsetInfo, sortedDecorations);
 }
 
-StructType StructType::getEmpty(MLIRContext *context) {
-  return Base::get(context, ArrayRef<Type>(),
+StructType StructType::lookupIdentified(MLIRContext *context,
+                                        StringRef identifier) {
+  assert(!identifier.empty() && "Struct identifier must be non-empty string");
+
+  return Base::lookup(context, identifier, ArrayRef<Type>(),
+                      ArrayRef<StructType::OffsetInfo>(),
+                      ArrayRef<StructType::MemberDecorationInfo>());
+}
+
+StructType StructType::getIdentified(MLIRContext *context,
+                                     StringRef identifier) {
+  assert(!identifier.empty() && "Struct identifier must be non-empty string");
+
+  return Base::get(context, identifier, ArrayRef<Type>(),
                    ArrayRef<StructType::OffsetInfo>(),
                    ArrayRef<StructType::MemberDecorationInfo>());
 }
+
+StructType StructType::getEmpty(MLIRContext *context, StringRef identifier) {
+  StructType newStructType =
+      Base::get(context, identifier, ArrayRef<Type>(),
+                ArrayRef<StructType::OffsetInfo>(),
+                ArrayRef<StructType::MemberDecorationInfo>());
+  // Set an empty body in case this is a identified struct.
+  newStructType.trySetBody(ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
+                           ArrayRef<StructType::MemberDecorationInfo>());
+  return newStructType;
+}
+
+StringRef StructType::getIdentifier() const { return getImpl()->identifier; }
 
 unsigned StructType::getNumElements() const { return getImpl()->numMembers; }
 
@@ -893,6 +982,13 @@ void StructType::getMemberDecorations(
       return;
     }
   }
+}
+
+LogicalResult
+StructType::trySetBody(ArrayRef<Type> memberTypes,
+                       ArrayRef<OffsetInfo> offsetInfo,
+                       ArrayRef<MemberDecorationInfo> memberDecorations) {
+  return getImpl()->trySetBody(memberTypes, offsetInfo, memberDecorations);
 }
 
 void StructType::getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
