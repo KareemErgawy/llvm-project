@@ -28,6 +28,22 @@ spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
   // CHECK: !spv.ptr<!spv.struct<()>, StorageBuffer>
   spv.globalVariable @empty : !spv.ptr<!spv.struct<()>, StorageBuffer>
 
+  // CHECK: !spv.ptr<!spv.struct<empty_struct, ()>, StorageBuffer>
+  spv.globalVariable @id_empty : !spv.ptr<!spv.struct<empty_struct, ()>, StorageBuffer>
+
+  // CHECK: !spv.ptr<!spv.struct<test_id, (!spv.array<128 x f32, stride=4> [0])>, Input>
+  spv.globalVariable @id_var0 : !spv.ptr<!spv.struct<test_id, (!spv.array<128 x f32, stride=4> [0])>, Input>
+
+
+  // CHECK: !spv.ptr<!spv.struct<rec, (!spv.ptr<!spv.struct<rec>, StorageBuffer>)>, StorageBuffer>
+  spv.globalVariable @recursive_simple : !spv.ptr<!spv.struct<rec, (!spv.ptr<!spv.struct<rec>, StorageBuffer>)>, StorageBuffer>
+
+  // CHECK: !spv.ptr<!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>)>, Uniform>)>, Uniform>
+  spv.globalVariable @recursive_2 : !spv.ptr<!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>)>, Uniform>)>, Uniform>
+
+  // CHECK: !spv.ptr<!spv.struct<axx, (!spv.ptr<!spv.struct<bxx, (!spv.ptr<!spv.struct<axx>, Uniform>, !spv.ptr<!spv.struct<bxx>, Uniform>)>, Uniform>)>, Uniform>
+  spv.globalVariable @recursive_3 : !spv.ptr<!spv.struct<axx, (!spv.ptr<!spv.struct<bxx, (!spv.ptr<!spv.struct<axx>, Uniform>, !spv.ptr<!spv.struct<bxx>, Uniform>)>, Uniform>)>, Uniform>
+
   // CHECK: !spv.ptr<!spv.struct<(!spv.array<128 x f32, stride=4> [0])>, Input>,
   // CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<128 x f32, stride=4> [0])>, Output>
   spv.func @kernel(%arg0: !spv.ptr<!spv.struct<(!spv.array<128 x f32, stride=4> [0])>, Input>, %arg1: !spv.ptr<!spv.struct<(!spv.array<128 x f32, stride=4> [0])>, Output>) -> () "None" {

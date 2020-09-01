@@ -117,6 +117,16 @@ static Block *getPhiIncomingBlock(Block *block) {
 
 namespace {
 
+/// Recursive struct references are serialized as OpTypePointer instructions to
+/// the recursive struct type. However, the OpTypePointer instruction cannot be
+/// emitted before the recursive struct's OpTypeStruct.
+/// RecursiveStructPointerInfo stores the data needed to emit such OpTypePointer
+/// instructions after forward references to such types.
+struct RecursiveStructPointerInfo {
+  uint32_t pointerTypeID;
+  spirv::StorageClass storageClass;
+};
+
 /// A SPIR-V module serializer.
 ///
 /// A SPIR-V binary module is a single linear stream of instructions; each
@@ -248,13 +258,16 @@ private:
 
   /// Main dispatch method for serializing a type. The result <id> of the
   /// serialized type will be returned as `typeID`.
-  LogicalResult processType(Location loc, Type type, uint32_t &typeID);
+  LogicalResult processType(Location loc, Type type, uint32_t &typeID,
+                            llvm::SetVector<StringRef> &serializationCtx);
 
   /// Method for preparing basic SPIR-V type serialization. Returns the type's
   /// opcode and operands for the instruction via `typeEnum` and `operands`.
   LogicalResult prepareBasicType(Location loc, Type type, uint32_t resultID,
                                  spirv::Opcode &typeEnum,
-                                 SmallVectorImpl<uint32_t> &operands);
+                                 SmallVectorImpl<uint32_t> &operands,
+                                 bool &deferSerialization,
+                                 llvm::SetVector<StringRef> &serializationCtx);
 
   LogicalResult prepareFunctionType(Location loc, FunctionType type,
                                     spirv::Opcode &typeEnum,
@@ -420,6 +433,10 @@ private:
   SmallVector<uint32_t, 0> decorations;
   SmallVector<uint32_t, 0> typesGlobalValues;
   SmallVector<uint32_t, 0> functions;
+
+  // Maps spirv::StructType to its recursive reference member info.
+  DenseMap<Type, SmallVector<RecursiveStructPointerInfo, 0>>
+      recursiveStructInfos;
 
   /// `functionHeader` contains all the instructions that must be in the first
   /// block in the function, and `functionBody` contains the rest. After
@@ -651,7 +668,8 @@ LogicalResult Serializer::processUndefOp(spirv::UndefOp op) {
   if (!id) {
     id = getNextID();
     uint32_t typeID = 0;
-    if (failed(processType(op.getLoc(), undefType, typeID)) ||
+    llvm::SetVector<StringRef> serializationCtx;
+    if (failed(processType(op.getLoc(), undefType, typeID, serializationCtx)) ||
         failed(encodeInstructionInto(typesGlobalValues, spirv::Opcode::OpUndef,
                                      {typeID, id}))) {
       return failure();
@@ -758,7 +776,8 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
 
   uint32_t fnTypeID = 0;
   // Generate type of the function.
-  processType(op.getLoc(), op.getType(), fnTypeID);
+  llvm::SetVector<StringRef> serializationCtx;
+  processType(op.getLoc(), op.getType(), fnTypeID, serializationCtx);
 
   // Add the function definition.
   SmallVector<uint32_t, 4> operands;
@@ -769,7 +788,7 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
   }
   if (failed(processType(op.getLoc(),
                          (resultTypes.empty() ? getVoidType() : resultTypes[0]),
-                         resTypeID))) {
+                         resTypeID, serializationCtx))) {
     return failure();
   }
   operands.push_back(resTypeID);
@@ -788,7 +807,8 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
   // Declare the parameters.
   for (auto arg : op.getArguments()) {
     uint32_t argTypeID = 0;
-    if (failed(processType(op.getLoc(), arg.getType(), argTypeID))) {
+    if (failed(processType(op.getLoc(), arg.getType(), argTypeID,
+                           serializationCtx))) {
       return failure();
     }
     auto argValueID = getNextID();
@@ -848,7 +868,9 @@ LogicalResult Serializer::processVariableOp(spirv::VariableOp op) {
   SmallVector<StringRef, 2> elidedAttrs;
   uint32_t resultID = 0;
   uint32_t resultTypeID = 0;
-  if (failed(processType(op.getLoc(), op.getType(), resultTypeID))) {
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(op.getLoc(), op.getType(), resultTypeID,
+                         serializationCtx))) {
     return failure();
   }
   operands.push_back(resultTypeID);
@@ -887,7 +909,9 @@ Serializer::processGlobalVariableOp(spirv::GlobalVariableOp varOp) {
   // Get TypeID.
   uint32_t resultTypeID = 0;
   SmallVector<StringRef, 4> elidedAttrs;
-  if (failed(processType(varOp.getLoc(), varOp.type(), resultTypeID))) {
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(varOp.getLoc(), varOp.type(), resultTypeID,
+                         serializationCtx))) {
     return failure();
   }
 
@@ -973,30 +997,69 @@ bool Serializer::isInterfaceStructPtrType(Type type) const {
   return false;
 }
 
-LogicalResult Serializer::processType(Location loc, Type type,
-                                      uint32_t &typeID) {
+LogicalResult
+Serializer::processType(Location loc, Type type, uint32_t &typeID,
+                        llvm::SetVector<StringRef> &serializationCtx) {
   typeID = getTypeID(type);
   if (typeID) {
     return success();
   }
   typeID = getNextID();
   SmallVector<uint32_t, 4> operands;
+
   operands.push_back(typeID);
   auto typeEnum = spirv::Opcode::OpTypeVoid;
+  bool deferSerialization = false;
+
   if ((type.isa<FunctionType>() &&
        succeeded(prepareFunctionType(loc, type.cast<FunctionType>(), typeEnum,
                                      operands))) ||
-      succeeded(prepareBasicType(loc, type, typeID, typeEnum, operands))) {
-    typeIDMap[type] = typeID;
-    return encodeInstructionInto(typesGlobalValues, typeEnum, operands);
+      succeeded(prepareBasicType(loc, type, typeID, typeEnum, operands,
+                                 deferSerialization, serializationCtx))) {
+    if (deferSerialization) {
+      return success();
+    } else {
+      typeIDMap[type] = typeID;
+
+      if (failed(
+              encodeInstructionInto(typesGlobalValues, typeEnum, operands))) {
+        return failure();
+      }
+
+      if (recursiveStructInfos.count(type) != 0) {
+        // This recursive struct type is emitted already, now the OpTypePointer
+        // instructions referring to recursive references are emitted as well.
+        for (auto &ptrInfo : recursiveStructInfos[type]) {
+          // TODO This might not work if more than 1 recursive reference is
+          // present in the struct.
+          SmallVector<uint32_t, 4> ptrOperands;
+          ptrOperands.push_back(ptrInfo.pointerTypeID);
+          ptrOperands.push_back(static_cast<uint32_t>(ptrInfo.storageClass));
+          ptrOperands.push_back(typeIDMap[type]);
+
+          if (failed(encodeInstructionInto(typesGlobalValues,
+                                           spirv::Opcode::OpTypePointer,
+                                           ptrOperands))) {
+            return failure();
+          }
+        }
+
+        recursiveStructInfos[type].clear();
+      }
+
+      return success();
+    }
   }
+
   return failure();
 }
 
-LogicalResult
-Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
-                             spirv::Opcode &typeEnum,
-                             SmallVectorImpl<uint32_t> &operands) {
+LogicalResult Serializer::prepareBasicType(
+    Location loc, Type type, uint32_t resultID, spirv::Opcode &typeEnum,
+    SmallVectorImpl<uint32_t> &operands, bool &deferSerialization,
+    llvm::SetVector<StringRef> &serializationCtx) {
+  deferSerialization = false;
+
   if (isVoidType(type)) {
     typeEnum = spirv::Opcode::OpTypeVoid;
     return success();
@@ -1026,7 +1089,8 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
 
   if (auto vectorType = type.dyn_cast<VectorType>()) {
     uint32_t elementTypeID = 0;
-    if (failed(processType(loc, vectorType.getElementType(), elementTypeID))) {
+    if (failed(processType(loc, vectorType.getElementType(), elementTypeID,
+                           serializationCtx))) {
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeVector;
@@ -1038,7 +1102,8 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
   if (auto arrayType = type.dyn_cast<spirv::ArrayType>()) {
     typeEnum = spirv::Opcode::OpTypeArray;
     uint32_t elementTypeID = 0;
-    if (failed(processType(loc, arrayType.getElementType(), elementTypeID))) {
+    if (failed(processType(loc, arrayType.getElementType(), elementTypeID,
+                           serializationCtx))) {
       return failure();
     }
     operands.push_back(elementTypeID);
@@ -1051,9 +1116,47 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
 
   if (auto ptrType = type.dyn_cast<spirv::PointerType>()) {
     uint32_t pointeeTypeID = 0;
-    if (failed(processType(loc, ptrType.getPointeeType(), pointeeTypeID))) {
-      return failure();
+    spirv::StructType pointeeStruct =
+        ptrType.getPointeeType().dyn_cast<spirv::StructType>();
+
+    if (pointeeStruct && !pointeeStruct.getIdentifier().empty() &&
+        serializationCtx.count(pointeeStruct.getIdentifier()) != 0) {
+      // A recursive reference to an enclosing struct is found.
+      //
+      // 1. Prepare an OpTypeForwardPointer with resultID and the ptr storage
+      // class as operands.
+      SmallVector<uint32_t, 2> forwardPtrOperands;
+      forwardPtrOperands.push_back(resultID);
+      forwardPtrOperands.push_back(
+          static_cast<uint32_t>(ptrType.getStorageClass()));
+
+      encodeInstructionInto(typesGlobalValues,
+                            spirv::Opcode::OpTypeForwardPointer,
+                            forwardPtrOperands);
+
+      // 2. Find the the pointee (enclosing) struct.
+      auto structType = spirv::StructType::lookupIdentified(
+          module.getContext(), pointeeStruct.getIdentifier());
+
+      if (!structType) {
+        return failure();
+      }
+
+      // 3. Mark the OpTypePointer that is supposed to be emitted by this call
+      // as deferred.
+      deferSerialization = true;
+
+      // 4. Record the info needed to emit the deferred OpTypePointer
+      // instruction when the enclosing struct is completely serialized.
+      recursiveStructInfos[structType].push_back(
+          {resultID, ptrType.getStorageClass()});
+    } else {
+      if (failed(processType(loc, ptrType.getPointeeType(), pointeeTypeID,
+                             serializationCtx))) {
+        return failure();
+      }
     }
+
     typeEnum = spirv::Opcode::OpTypePointer;
     operands.push_back(static_cast<uint32_t>(ptrType.getStorageClass()));
     operands.push_back(pointeeTypeID);
@@ -1063,7 +1166,7 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
   if (auto runtimeArrayType = type.dyn_cast<spirv::RuntimeArrayType>()) {
     uint32_t elementTypeID = 0;
     if (failed(processType(loc, runtimeArrayType.getElementType(),
-                           elementTypeID))) {
+                           elementTypeID, serializationCtx))) {
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeRuntimeArray;
@@ -1071,15 +1174,18 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
     return processTypeDecoration(loc, runtimeArrayType, resultID);
   }
 
-  // TODO Make sure to handle identified structs properly. The identifier will
-  // probably be a decoration.
   if (auto structType = type.dyn_cast<spirv::StructType>()) {
+    if (!structType.getIdentifier().empty()) {
+      processName(resultID, structType.getIdentifier());
+      serializationCtx.insert(structType.getIdentifier());
+    }
+
     bool hasOffset = structType.hasOffset();
     for (auto elementIndex :
          llvm::seq<uint32_t>(0, structType.getNumElements())) {
       uint32_t elementTypeID = 0;
       if (failed(processType(loc, structType.getElementType(elementIndex),
-                             elementTypeID))) {
+                             elementTypeID, serializationCtx))) {
         return failure();
       }
       operands.push_back(elementTypeID);
@@ -1097,6 +1203,7 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
     }
     SmallVector<spirv::StructType::MemberDecorationInfo, 4> memberDecorations;
     structType.getMemberDecorations(memberDecorations);
+
     for (auto &memberDecoration : memberDecorations) {
       if (failed(processMemberDecoration(resultID, memberDecoration))) {
         return emitError(loc, "cannot decorate ")
@@ -1105,7 +1212,13 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
                << stringifyDecoration(memberDecoration.decoration);
       }
     }
+
     typeEnum = spirv::Opcode::OpTypeStruct;
+
+    if (!structType.getIdentifier().empty()) {
+      serializationCtx.remove(structType.getIdentifier());
+    }
+
     return success();
   }
 
@@ -1113,7 +1226,7 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
           type.dyn_cast<spirv::CooperativeMatrixNVType>()) {
     uint32_t elementTypeID = 0;
     if (failed(processType(loc, cooperativeMatrixType.getElementType(),
-                           elementTypeID))) {
+                           elementTypeID, serializationCtx))) {
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeCooperativeMatrixNV;
@@ -1131,7 +1244,8 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
 
   if (auto matrixType = type.dyn_cast<spirv::MatrixType>()) {
     uint32_t elementTypeID = 0;
-    if (failed(processType(loc, matrixType.getColumnType(), elementTypeID))) {
+    if (failed(processType(loc, matrixType.getColumnType(), elementTypeID,
+                           serializationCtx))) {
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeMatrix;
@@ -1152,15 +1266,16 @@ Serializer::prepareFunctionType(Location loc, FunctionType type,
   assert(type.getNumResults() <= 1 &&
          "serialization supports only a single return value");
   uint32_t resultID = 0;
+  llvm::SetVector<StringRef> serializationCtx;
   if (failed(processType(
           loc, type.getNumResults() == 1 ? type.getResult(0) : getVoidType(),
-          resultID))) {
+          resultID, serializationCtx))) {
     return failure();
   }
   operands.push_back(resultID);
   for (auto &res : type.getInputs()) {
     uint32_t argTypeID = 0;
-    if (failed(processType(loc, res, argTypeID))) {
+    if (failed(processType(loc, res, argTypeID, serializationCtx))) {
       return failure();
     }
     operands.push_back(argTypeID);
@@ -1186,7 +1301,8 @@ uint32_t Serializer::prepareConstant(Location loc, Type constType,
   }
 
   uint32_t typeID = 0;
-  if (failed(processType(loc, constType, typeID))) {
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(loc, constType, typeID, serializationCtx))) {
     return 0;
   }
 
@@ -1212,7 +1328,8 @@ uint32_t Serializer::prepareConstant(Location loc, Type constType,
 uint32_t Serializer::prepareArrayConstant(Location loc, Type constType,
                                           ArrayAttr attr) {
   uint32_t typeID = 0;
-  if (failed(processType(loc, constType, typeID))) {
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(loc, constType, typeID, serializationCtx))) {
     return 0;
   }
 
@@ -1254,7 +1371,8 @@ Serializer::prepareDenseElementsConstant(Location loc, Type constType,
   }
 
   uint32_t typeID = 0;
-  if (failed(processType(loc, constType, typeID))) {
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(loc, constType, typeID, serializationCtx))) {
     return 0;
   }
 
@@ -1303,7 +1421,8 @@ uint32_t Serializer::prepareConstantBool(Location loc, BoolAttr boolAttr,
 
   // Process the type for this bool literal
   uint32_t typeID = 0;
-  if (failed(processType(loc, boolAttr.getType(), typeID))) {
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(loc, boolAttr.getType(), typeID, serializationCtx))) {
     return 0;
   }
 
@@ -1332,7 +1451,8 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
 
   // Process the type for this integer literal
   uint32_t typeID = 0;
-  if (failed(processType(loc, intAttr.getType(), typeID))) {
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(loc, intAttr.getType(), typeID, serializationCtx))) {
     return 0;
   }
 
@@ -1398,7 +1518,8 @@ uint32_t Serializer::prepareConstantFp(Location loc, FloatAttr floatAttr,
 
   // Process the type for this float literal
   uint32_t typeID = 0;
-  if (failed(processType(loc, floatAttr.getType(), typeID))) {
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(loc, floatAttr.getType(), typeID, serializationCtx))) {
     return 0;
   }
 
@@ -1518,7 +1639,9 @@ LogicalResult Serializer::emitPhiForBlockArguments(Block *block) {
 
     // Get the type <id> and result <id> for this OpPhi instruction.
     uint32_t phiTypeID = 0;
-    if (failed(processType(arg.getLoc(), arg.getType(), phiTypeID)))
+    llvm::SetVector<StringRef> serializationCtx;
+    if (failed(processType(arg.getLoc(), arg.getType(), phiTypeID,
+                           serializationCtx)))
       return failure();
     uint32_t phiID = getNextID();
 
@@ -1886,7 +2009,8 @@ Serializer::processOp<spirv::FunctionCallOp>(spirv::FunctionCallOp op) {
   uint32_t resTypeID = 0;
 
   Type resultTy = op.getNumResults() ? *op.result_type_begin() : getVoidType();
-  if (failed(processType(op.getLoc(), resultTy, resTypeID)))
+  llvm::SetVector<StringRef> serializationCtx;
+  if (failed(processType(op.getLoc(), resultTy, resTypeID, serializationCtx)))
     return failure();
 
   auto funcID = getOrCreateFunctionID(funcName);
