@@ -760,31 +760,31 @@ Optional<int64_t> SPIRVType::getSizeInBytes() {
 //===----------------------------------------------------------------------===//
 
 struct spirv::detail::StructTypeStorage : public TypeStorage {
- StructTypeStorage(StringRef identifier, TypeStorageAllocator &allocator)
-     : memberTypes(nullptr), offsetInfo(nullptr), numMemberDecorations(0),
-       memberDecorationsInfo(nullptr), isBodySet(false),
-       identifier(identifier), allocator(&allocator) {}
+  StructTypeStorage(StringRef identifier, TypeStorageAllocator &allocator)
+      : memberTypes(nullptr), offsetInfo(nullptr), numMemberDecorations(0),
+        memberDecorationsInfo(nullptr), isBodySet(false),
+        identifier(identifier), allocator(&allocator) {}
 
- StructTypeStorage(
-     unsigned numMembers, Type const *memberTypes,
-     StructType::OffsetInfo const *layoutInfo, unsigned numMemberDecorations,
-     StructType::MemberDecorationInfo const *memberDecorationsInfo)
-     : memberTypes(memberTypes), offsetInfo(layoutInfo), numMembers(numMembers),
-       numMemberDecorations(numMemberDecorations),
-       memberDecorationsInfo(memberDecorationsInfo), isBodySet(false),
-       identifier(StringRef()), allocator(nullptr) {}
+  StructTypeStorage(
+      unsigned numMembers, Type const *memberTypes,
+      StructType::OffsetInfo const *layoutInfo, unsigned numMemberDecorations,
+      StructType::MemberDecorationInfo const *memberDecorationsInfo)
+      : memberTypes(memberTypes), offsetInfo(layoutInfo),
+        numMembers(numMembers), numMemberDecorations(numMemberDecorations),
+        memberDecorationsInfo(memberDecorationsInfo), isBodySet(false),
+        identifier(StringRef()), allocator(nullptr) {}
 
- using KeyTy =
-     std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
-                ArrayRef<StructType::MemberDecorationInfo>>;
+  using KeyTy =
+      std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
+                 ArrayRef<StructType::MemberDecorationInfo>>;
 
- bool operator==(const KeyTy &key) const {
-   if (isIdentified())
-     // Identified types are uniqued by their identifier.
-     return getIdentifier() == std::get<0>(key);
-   else
-     return key == KeyTy(StringRef(), getMemberTypes(), getOffsetInfo(),
-                         getMemberDecorationsInfo());
+  bool operator==(const KeyTy &key) const {
+    if (isIdentified())
+      // Identified types are uniqued by their identifier.
+      return getIdentifier() == std::get<0>(key);
+    else
+      return key == KeyTy(StringRef(), getMemberTypes(), getOffsetInfo(),
+                          getMemberDecorationsInfo());
   }
 
   static StructTypeStorage *construct(TypeStorageAllocator &allocator,
@@ -928,10 +928,9 @@ StructType StructType::getIdentified(MLIRContext *context,
 }
 
 StructType StructType::getEmpty(MLIRContext *context, StringRef identifier) {
-  StructType newStructType =
-      Base::get(context, identifier, ArrayRef<Type>(),
-                ArrayRef<StructType::OffsetInfo>(),
-                ArrayRef<StructType::MemberDecorationInfo>());
+  StructType newStructType = Base::get(
+      context, identifier, ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
+      ArrayRef<StructType::MemberDecorationInfo>());
   // Set an empty body in case this is a identified struct.
   newStructType.trySetBody(ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
                            ArrayRef<StructType::MemberDecorationInfo>());
