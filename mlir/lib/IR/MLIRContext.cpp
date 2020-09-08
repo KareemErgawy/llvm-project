@@ -345,8 +345,6 @@ public:
   UnknownLoc unknownLocAttr;
   DictionaryAttr emptyDictionaryAttr;
 
-  llvm::SetVector<StringRef> structContext;
-
 public:
   MLIRContextImpl() : identifiers(identifierAllocator) {}
   ~MLIRContextImpl() {
@@ -954,8 +952,4 @@ const AttributeStorage *
 mlir::detail::generateUnknownStorageLocation(MLIRContext *ctx) {
   return reinterpret_cast<const AttributeStorage *>(
       ctx->getImpl().unknownLocAttr.getAsOpaquePointer());
-}
-
-llvm::SetVector<StringRef> &MLIRContext::getStructContext() {
-  return impl->structContext;
 }

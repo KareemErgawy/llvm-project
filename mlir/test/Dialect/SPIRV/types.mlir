@@ -365,59 +365,59 @@ func @id_struct_multiple_elements(!spv.struct<multi_elements, (f32, i32)>) -> ()
 
 // -----
 
-// CHECK: func @id_struct_nested_literal(!spv.struct<a, (!spv.struct<()>)>)
-func @id_struct_nested_literal(!spv.struct<a, (!spv.struct<()>)>) -> ()
+// CHECK: func @id_struct_nested_literal(!spv.struct<a1, (!spv.struct<()>)>)
+func @id_struct_nested_literal(!spv.struct<a1, (!spv.struct<()>)>) -> ()
 
 // -----
 
-// CHECK: func @id_struct_nested_id(!spv.struct<a, (!spv.struct<b, ()>)>)
-func @id_struct_nested_id(!spv.struct<a, (!spv.struct<b, ()>)>) -> ()
+// CHECK: func @id_struct_nested_id(!spv.struct<a2, (!spv.struct<b2, ()>)>)
+func @id_struct_nested_id(!spv.struct<a2, (!spv.struct<b2, ()>)>) -> ()
 
 // -----
 
-// CHECK: func @literal_struct_nested_id(!spv.struct<(!spv.struct<a, ()>)>)
-func @literal_struct_nested_id(!spv.struct<(!spv.struct<a, ()>)>) -> ()
+// CHECK: func @literal_struct_nested_id(!spv.struct<(!spv.struct<a3, ()>)>)
+func @literal_struct_nested_id(!spv.struct<(!spv.struct<a3, ()>)>) -> ()
 
 // -----
 
-// CHECK: func @id_struct_self_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<a>, Uniform>)>)
-func @id_struct_self_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<a>, Uniform>)>) -> ()
+// CHECK: func @id_struct_self_recursive(!spv.struct<a4, (!spv.ptr<!spv.struct<a4>, Uniform>)>)
+func @id_struct_self_recursive(!spv.struct<a4, (!spv.ptr<!spv.struct<a4>, Uniform>)>) -> ()
 
 // -----
 
-// CHECK: func @id_struct_self_recursive2(!spv.struct<a, (i32, !spv.ptr<!spv.struct<a>, Uniform>)>)
-func @id_struct_self_recursive2(!spv.struct<a, (i32, !spv.ptr<!spv.struct<a>, Uniform>)>) -> ()
-
-// -----
-
-// expected-error @+1 {{recursive struct reference not nested in struct definition}}
-func @id_wrong_recursive_reference(!spv.struct<a>) -> ()
+// CHECK: func @id_struct_self_recursive2(!spv.struct<a5, (i32, !spv.ptr<!spv.struct<a5>, Uniform>)>)
+func @id_struct_self_recursive2(!spv.struct<a5, (i32, !spv.ptr<!spv.struct<a5>, Uniform>)>) -> ()
 
 // -----
 
 // expected-error @+1 {{recursive struct reference not nested in struct definition}}
-func @id_struct_recursive_invalid(!spv.struct<a, (!spv.ptr<!spv.struct<b>, Uniform>)>) -> ()
+func @id_wrong_recursive_reference(!spv.struct<a6>) -> ()
+
+// -----
+
+// expected-error @+1 {{recursive struct reference not nested in struct definition}}
+func @id_struct_recursive_invalid(!spv.struct<a7, (!spv.ptr<!spv.struct<b7>, Uniform>)>) -> ()
 
 // -----
 
 // expected-error @+1 {{identifier already used for an enclosing struct}}
-func @id_struct_redefinition(!spv.struct<a, (!spv.ptr<!spv.struct<a, (!spv.ptr<!spv.struct<a>, Uniform>)>, Uniform>)>) -> ()
+func @id_struct_redefinition(!spv.struct<a8, (!spv.ptr<!spv.struct<a8, (!spv.ptr<!spv.struct<a8>, Uniform>)>, Uniform>)>) -> ()
 
 // -----
 
 // Equivalent to:
 //   struct a { struct b *bPtr; };
 //   struct b { struct a *aPtr; };
-// CHECK: func @id_struct_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>)>, Uniform>)>)
-func @id_struct_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>)>, Uniform>)>) -> ()
+// CHECK: func @id_struct_recursive(!spv.struct<a9, (!spv.ptr<!spv.struct<b9, (!spv.ptr<!spv.struct<a9>, Uniform>)>, Uniform>)>)
+func @id_struct_recursive(!spv.struct<a9, (!spv.ptr<!spv.struct<b9, (!spv.ptr<!spv.struct<a9>, Uniform>)>, Uniform>)>) -> ()
 
 // -----
 
 // Equivalent to:
 //   struct a { struct b *bPtr; };
 //   struct b { struct a *aPtr, struct b *bPtr; };
-// CHECK: func @id_struct_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>, !spv.ptr<!spv.struct<b>, Uniform>)>, Uniform>)>)
-func @id_struct_recursive(!spv.struct<a, (!spv.ptr<!spv.struct<b, (!spv.ptr<!spv.struct<a>, Uniform>, !spv.ptr<!spv.struct<b>, Uniform>)>, Uniform>)>) -> ()
+// CHECK: func @id_struct_recursive(!spv.struct<a10, (!spv.ptr<!spv.struct<b10, (!spv.ptr<!spv.struct<a10>, Uniform>, !spv.ptr<!spv.struct<b10>, Uniform>)>, Uniform>)>)
+func @id_struct_recursive(!spv.struct<a10, (!spv.ptr<!spv.struct<b10, (!spv.ptr<!spv.struct<a10>, Uniform>, !spv.ptr<!spv.struct<b10>, Uniform>)>, Uniform>)>) -> ()
 
 // -----
 

@@ -23,6 +23,7 @@
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Sequence.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -594,6 +595,8 @@ static ParseResult parseStructMemberDecorations(
 //                  (`, ` spirv-type (`[` struct-member-decoration `]`)? `>`
 static Type parseStructType(SPIRVDialect const &dialect,
                             DialectAsmParser &parser) {
+  static llvm::SetVector<StringRef> structContext;
+
   if (parser.parseLess())
     return Type();
 
@@ -604,7 +607,7 @@ static Type parseStructType(SPIRVDialect const &dialect,
   if (succeeded(parser.parseOptionalKeyword(&identifier))) {
     // Check if this is a possible recursive reference
     if (succeeded(parser.parseOptionalGreater())) {
-      if (parser.getStructContext().count(identifier) == 0) {
+      if (structContext.count(identifier) == 0) {
         parser.emitError(
             parser.getNameLoc(),
             "recursive struct reference not nested in struct definition");
@@ -621,8 +624,8 @@ static Type parseStructType(SPIRVDialect const &dialect,
     if (parser.parseComma())
       return Type();
 
-    identifierExistsInCtx = (parser.getStructContext().count(identifier) > 0);
-    parser.getStructContext().insert(identifier);
+    identifierExistsInCtx = (structContext.count(identifier) > 0);
+    structContext.insert(identifier);
   }
 
   if (parser.parseLParen())
@@ -673,7 +676,7 @@ static Type parseStructType(SPIRVDialect const &dialect,
 
   if (!identifier.empty()) {
     idStructTy.trySetBody(memberTypes, offsetInfo, memberDecorationInfo);
-    parser.getStructContext().remove(identifier);
+    structContext.remove(identifier);
     return idStructTy;
   }
 

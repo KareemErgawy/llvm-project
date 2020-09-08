@@ -279,10 +279,6 @@ public:
                          function_ref<ParseResult(bool)> parseElement,
                          OpAsmParser::Delimiter delimiter);
 
-  llvm::SetVector<StringRef> &getStructContext() {
-    return state.getStructContext();
-  }
-
 private:
   /// The Parser is subclassed and reinstantiated.  Do not add additional
   /// non-trivial state here, add it to the ParserState class.
