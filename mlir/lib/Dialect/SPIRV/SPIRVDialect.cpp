@@ -742,14 +742,16 @@ static void print(ImageType type, DialectAsmPrinter &os) {
 }
 
 static void print(StructType type, DialectAsmPrinter &os) {
+  static llvm::SetVector<StringRef> structContext;
+
   os << "struct<";
 
   if (!type.getIdentifier().empty()) {
     os << type.getIdentifier();
 
-    if (os.getStructContext().count(type.getIdentifier()) == 0) {
+    if (structContext.count(type.getIdentifier()) == 0) {
       os << ", ";
-      os.getStructContext().insert(type.getIdentifier());
+      structContext.insert(type.getIdentifier());
     } else {
       os << ">";
       return;
@@ -784,7 +786,7 @@ static void print(StructType type, DialectAsmPrinter &os) {
   os << ")>";
 
   if (!type.getIdentifier().empty()) {
-    os.getStructContext().remove(type.getIdentifier());
+    structContext.remove(type.getIdentifier());
   }
 }
 

@@ -48,8 +48,6 @@ public:
   /// Print the given type to the stream.
   virtual void printType(Type type) = 0;
 
-  virtual llvm::SetVector<StringRef> &getStructContext() = 0;
-
 private:
   DialectAsmPrinter(const DialectAsmPrinter &) = delete;
   void operator=(const DialectAsmPrinter &) = delete;
