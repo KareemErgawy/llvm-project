@@ -595,7 +595,7 @@ static ParseResult parseStructMemberDecorations(
 //                  (`, ` spirv-type (`[` struct-member-decoration `]`)? `>`
 static Type parseStructType(SPIRVDialect const &dialect,
                             DialectAsmParser &parser) {
-  static llvm::SetVector<StringRef> structContext;
+  thread_local llvm::SetVector<StringRef> structContext;
 
   if (parser.parseLess())
     return Type();
@@ -745,7 +745,7 @@ static void print(ImageType type, DialectAsmPrinter &os) {
 }
 
 static void print(StructType type, DialectAsmPrinter &os) {
-  static llvm::SetVector<StringRef> structContext;
+  thread_local llvm::SetVector<StringRef> structContext;
 
   os << "struct<";
 
