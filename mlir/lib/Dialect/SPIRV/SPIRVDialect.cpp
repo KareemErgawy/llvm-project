@@ -615,16 +615,13 @@ static Type parseStructType(SPIRVDialect const &dialect,
         return Type();
       }
 
-      StructType lookupResult =
-          StructType::lookupIdentified(dialect.getContext(), identifier);
-
-      return lookupResult;
+      return StructType::getIdentified(dialect.getContext(), identifier);
     }
 
     if (parser.parseComma())
       return Type();
 
-    identifierExistsInCtx = (structContext.count(identifier) > 0);
+    identifierExistsInCtx = (structContext.count(identifier) != 0);
     structContext.insert(identifier);
   }
 

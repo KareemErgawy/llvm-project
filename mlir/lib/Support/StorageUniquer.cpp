@@ -92,33 +92,6 @@ struct StorageUniquerImpl {
   /// Check if an instance of a parametric storage class exists.
   bool hasParametricStorage(TypeID id) { return parametricUniquers.count(id); }
 
-  BaseStorage *lookup(TypeID id, unsigned hashValue,
-                      function_ref<bool(const BaseStorage *)> isEqual) {
-    ParametricStorageUniquer::LookupKey lookupKey{hashValue, isEqual};
-    ParametricStorageUniquer &storageUniquer = *parametricUniquers[id];
-    if (!threadingIsEnabled)
-      return lookupUnsafe(storageUniquer, lookupKey);
-
-    // Check for an existing instance in read-only mode.
-    {
-      llvm::sys::SmartScopedReader<true> typeLock(storageUniquer.mutex);
-      auto it = storageUniquer.instances.find_as(lookupKey);
-      if (it != storageUniquer.instances.end())
-        return it->storage;
-    }
-
-    return nullptr;
-  }
-
-  BaseStorage *lookupUnsafe(ParametricStorageUniquer &storageUniquer,
-                            ParametricStorageUniquer::LookupKey &lookupKey) {
-    auto it = storageUniquer.instances.find_as(lookupKey);
-    if (it != storageUniquer.instances.end())
-      return it->storage;
-
-    return nullptr;
-  }
-
   /// Get or create an instance of a parametric type.
   BaseStorage *
   getOrCreate(TypeID id, unsigned hashValue,
@@ -236,12 +209,6 @@ StorageUniquer::~StorageUniquer() {}
 /// Set the flag specifying if multi-threading is disabled within the uniquer.
 void StorageUniquer::disableMultithreading(bool disable) {
   impl->threadingIsEnabled = !disable;
-}
-
-auto StorageUniquer::lookupImpl(const TypeID &id, unsigned hashValue,
-                                function_ref<bool(const BaseStorage *)> isEqual)
-    -> BaseStorage * {
-  return impl->lookup(id, hashValue, isEqual);
 }
 
 /// Implementation for getting/creating an instance of a derived type with

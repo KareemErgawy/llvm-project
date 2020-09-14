@@ -762,8 +762,8 @@ Optional<int64_t> SPIRVType::getSizeInBytes() {
 struct spirv::detail::StructTypeStorage : public TypeStorage {
   StructTypeStorage(StringRef identifier, TypeStorageAllocator &allocator)
       : memberTypes(nullptr), offsetInfo(nullptr), numMemberDecorations(0),
-        memberDecorationsInfo(nullptr), isBodySet(false),
-        identifier(identifier), allocator(&allocator) {}
+        memberDecorationsInfo(nullptr), identifier(identifier),
+        allocator(&allocator), isBodySet(false) {}
 
   StructTypeStorage(
       unsigned numMembers, Type const *memberTypes,
@@ -771,8 +771,8 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
       StructType::MemberDecorationInfo const *memberDecorationsInfo)
       : memberTypes(memberTypes), offsetInfo(layoutInfo),
         numMembers(numMembers), numMemberDecorations(numMemberDecorations),
-        memberDecorationsInfo(memberDecorationsInfo), isBodySet(false),
-        identifier(StringRef()), allocator(nullptr) {}
+        memberDecorationsInfo(memberDecorationsInfo), identifier(StringRef()),
+        allocator(nullptr), isBodySet(false) {}
 
   using KeyTy =
       std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
@@ -857,7 +857,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
   trySetBody(ArrayRef<Type> memberTypes,
              ArrayRef<StructType::OffsetInfo> offsetInfo,
              ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
-    if (isBodySet > 0) {
+    if (isBodySet) {
       return failure();
     }
 
@@ -891,9 +891,9 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
   unsigned numMemberDecorations;
   StructType::MemberDecorationInfo const *memberDecorationsInfo;
 
-  bool isBodySet;
   StringRef identifier;
   TypeStorageAllocator *allocator;
+  bool isBodySet;
 };
 
 StructType
@@ -907,15 +907,6 @@ StructType::get(ArrayRef<Type> memberTypes,
   llvm::array_pod_sort(sortedDecorations.begin(), sortedDecorations.end());
   return Base::get(memberTypes.vec().front().getContext(), StringRef(),
                    memberTypes, offsetInfo, sortedDecorations);
-}
-
-StructType StructType::lookupIdentified(MLIRContext *context,
-                                        StringRef identifier) {
-  assert(!identifier.empty() && "Struct identifier must be non-empty string");
-
-  return Base::lookup(context, identifier, ArrayRef<Type>(),
-                      ArrayRef<StructType::OffsetInfo>(),
-                      ArrayRef<StructType::MemberDecorationInfo>());
 }
 
 StructType StructType::getIdentified(MLIRContext *context,

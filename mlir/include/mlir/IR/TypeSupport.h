@@ -122,12 +122,6 @@ namespace detail {
 /// A utility class to get, or create, unique instances of types within an
 /// MLIRContext. This class manages all creation and uniquing of types.
 struct TypeUniquer {
-  template <typename T, typename... Args>
-  static T lookup(MLIRContext *ctx, Args &&... args) {
-    return ctx->getTypeUniquer().lookup<typename T::ImplType>(
-        T::getTypeID(), std::forward<Args>(args)...);
-  }
-
   /// Get an uniqued instance of a parametric type T.
   template <typename T, typename... Args>
   static typename std::enable_if_t<

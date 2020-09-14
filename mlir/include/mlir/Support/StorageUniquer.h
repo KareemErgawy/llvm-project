@@ -162,24 +162,6 @@ public:
     registerSingletonStorageType<Storage>(TypeID::get<Storage>(), initFn);
   }
 
-  template <typename Storage, typename Arg, typename... Args>
-  Storage *lookup(const TypeID &id, Arg &&arg, Args &&... args) {
-    // Construct a value of the derived key type.
-    auto derivedKey =
-        getKey<Storage>(std::forward<Arg>(arg), std::forward<Args>(args)...);
-
-    // Create a hash of the derived key.
-    unsigned hashValue = getHash<Storage>(derivedKey);
-
-    // Generate an equality function for the derived storage.
-    auto isEqual = [&derivedKey](const BaseStorage *existing) {
-      return static_cast<const Storage &>(*existing) == derivedKey;
-    };
-
-    // Get an instance for the derived storage.
-    return static_cast<Storage *>(lookupImpl(id, hashValue, isEqual));
-  }
-
   /// Gets a uniqued instance of 'Storage'. 'id' is the type id used when
   /// registering the storage instance. 'initFn' is an optional parameter that
   /// can be used to initialize a newly inserted storage instance. This function
@@ -272,9 +254,6 @@ public:
   }
 
 private:
-  BaseStorage *lookupImpl(const TypeID &id, unsigned hashValue,
-                          function_ref<bool(const BaseStorage *)> isEqual);
-
   /// Implementation for getting/creating an instance of a derived type with
   /// parametric storage.
   BaseStorage *getParametricStorageTypeImpl(

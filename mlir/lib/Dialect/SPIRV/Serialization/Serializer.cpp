@@ -1136,7 +1136,7 @@ LogicalResult Serializer::prepareBasicType(
                             forwardPtrOperands);
 
       // 2. Find the the pointee (enclosing) struct.
-      auto structType = spirv::StructType::lookupIdentified(
+      auto structType = spirv::StructType::getIdentified(
           module.getContext(), pointeeStruct.getIdentifier());
 
       if (!structType) {
