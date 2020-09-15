@@ -794,6 +794,8 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     if (!keyIdentifier.empty()) {
       StringRef identifier = allocator.copyInto(keyIdentifier);
 
+      // Identified StructType body/members will be set through trySetBody(...)
+      // later.
       return new (allocator.allocate<StructTypeStorage>())
           StructTypeStorage(identifier, allocator);
     }
@@ -851,13 +853,11 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
 
   bool isIdentified() const { return !identifier.empty(); }
 
-  bool hasBody() const { return memberTypes == nullptr; }
-
   LogicalResult
   trySetBody(ArrayRef<Type> memberTypes,
              ArrayRef<StructType::OffsetInfo> offsetInfo,
              ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
-    if (isBodySet) {
+    if (!isIdentified() || isBodySet) {
       return failure();
     }
 
@@ -905,13 +905,15 @@ StructType::get(ArrayRef<Type> memberTypes,
   SmallVector<StructType::MemberDecorationInfo, 4> sortedDecorations(
       memberDecorations.begin(), memberDecorations.end());
   llvm::array_pod_sort(sortedDecorations.begin(), sortedDecorations.end());
-  return Base::get(memberTypes.vec().front().getContext(), StringRef(),
-                   memberTypes, offsetInfo, sortedDecorations);
+  return Base::get(memberTypes.vec().front().getContext(),
+                   /*identifier=*/StringRef(), memberTypes, offsetInfo,
+                   sortedDecorations);
 }
 
 StructType StructType::getIdentified(MLIRContext *context,
                                      StringRef identifier) {
-  assert(!identifier.empty() && "Struct identifier must be non-empty string");
+  assert(!identifier.empty() &&
+         "StructType identifier must be non-empty string");
 
   return Base::get(context, identifier, ArrayRef<Type>(),
                    ArrayRef<StructType::OffsetInfo>(),
@@ -929,6 +931,8 @@ StructType StructType::getEmpty(MLIRContext *context, StringRef identifier) {
 }
 
 StringRef StructType::getIdentifier() const { return getImpl()->identifier; }
+
+bool StructType::isIdentified() const { return getImpl()->isIdentified(); }
 
 unsigned StructType::getNumElements() const { return getImpl()->numMembers; }
 

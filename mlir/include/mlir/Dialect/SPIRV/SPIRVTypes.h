@@ -297,18 +297,23 @@ public:
     }
   };
 
-  /// Construct a StructType with at least one member.
+  /// Construct a literal StructType with at least one member.
   static StructType get(ArrayRef<Type> memberTypes,
                         ArrayRef<OffsetInfo> offsetInfo = {},
                         ArrayRef<MemberDecorationInfo> memberDecorations = {});
 
-  /// Construct an identified struct.
+  /// Construct an identified StructType. This creates a StructType whose body
+  /// (member types, offset info, and decorations) is not set yet. A call to
+  /// StructType::trySetBody(...) must follow when the StructType contents are
+  /// available (e.g. parsed or deserialized).
   static StructType getIdentified(MLIRContext *context, StringRef identifier);
 
-  /// Construct a (possibly identified) struct with no members.
+  /// Construct a (possibly identified) StructType with no members.
   static StructType getEmpty(MLIRContext *context, StringRef identifier = "");
 
   StringRef getIdentifier() const;
+
+  bool isIdentified() const;
 
   unsigned getNumElements() const;
 
@@ -351,6 +356,9 @@ public:
                             SmallVectorImpl<StructType::MemberDecorationInfo>
                                 &decorationsInfo) const;
 
+  /// Sets the contents of an incomplete identified StructType. This method must
+  /// be called only for identified StructTypes and it must be called only once
+  /// per instance. Otherwise, failure() is returned.
   LogicalResult
   trySetBody(ArrayRef<Type> memberTypes, ArrayRef<OffsetInfo> offsetInfo = {},
              ArrayRef<MemberDecorationInfo> memberDecorations = {});

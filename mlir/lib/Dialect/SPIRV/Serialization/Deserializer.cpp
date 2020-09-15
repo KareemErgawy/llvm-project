@@ -109,7 +109,7 @@ using BlockMergeInfoMap = DenseMap<Block *, BlockMergeInfo>;
 /// when the Deserializer encounters it. Instead we create a
 /// DeferredStructTypeInfo that contains all the information we know about the
 /// spirv::StructType. Once all forward references for the struct are resolved,
-/// the struct's body is set will all member info.
+/// the struct's body is set with all member info.
 struct DeferredStructTypeInfo {
   // The ID of the deferred struct type.
   uint32_t structID;
@@ -1271,8 +1271,7 @@ LogicalResult Deserializer::processOpTypePointer(ArrayRef<uint32_t> operands) {
           typeMap[deferredStructIt->structID].dyn_cast<spirv::StructType>();
 
       assert(structType && "Expected a spirv::StructType.");
-      assert(!structType.getIdentifier().empty() &&
-             "Expected an indentified struct.");
+      assert(structType.isIdentified() && "Expected an indentified struct.");
 
       structType.trySetBody(deferredStructIt->memberTypes,
                             deferredStructIt->offsetInfo,

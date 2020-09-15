@@ -1120,7 +1120,7 @@ LogicalResult Serializer::prepareBasicType(
     spirv::StructType pointeeStruct =
         ptrType.getPointeeType().dyn_cast<spirv::StructType>();
 
-    if (pointeeStruct && !pointeeStruct.getIdentifier().empty() &&
+    if (pointeeStruct && pointeeStruct.isIdentified() &&
         serializationCtx.count(pointeeStruct.getIdentifier()) != 0) {
       // A recursive reference to an enclosing struct is found.
       //
@@ -1176,7 +1176,7 @@ LogicalResult Serializer::prepareBasicType(
   }
 
   if (auto structType = type.dyn_cast<spirv::StructType>()) {
-    if (!structType.getIdentifier().empty()) {
+    if (structType.isIdentified()) {
       processName(resultID, structType.getIdentifier());
       serializationCtx.insert(structType.getIdentifier());
     }
@@ -1216,7 +1216,7 @@ LogicalResult Serializer::prepareBasicType(
 
     typeEnum = spirv::Opcode::OpTypeStruct;
 
-    if (!structType.getIdentifier().empty()) {
+    if (structType.isIdentified()) {
       serializationCtx.remove(structType.getIdentifier());
     }
 

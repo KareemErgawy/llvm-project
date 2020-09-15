@@ -68,7 +68,7 @@ VulkanLayoutUtils::decorateType(spirv::StructType structType,
   alignment = maxMemberAlignment;
   structType.getMemberDecorations(memberDecorations);
 
-  if (structType.getIdentifier().empty()) {
+  if (!structType.isIdentified()) {
     return spirv::StructType::get(memberTypes, offsetInfo, memberDecorations);
   } else {
     // TODO What should we do in that situation? Identified structs are uniqued

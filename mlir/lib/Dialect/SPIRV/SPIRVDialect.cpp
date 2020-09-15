@@ -591,8 +591,10 @@ static ParseResult parseStructMemberDecorations(
 
 // struct-member-decoration ::= integer-literal? spirv-decoration*
 // struct-type ::=
-//             `!spv.struct<(` spirv-type (`[` struct-member-decoration `]`)?
-//                  (`, ` spirv-type (`[` struct-member-decoration `]`)? `>`
+//             `!spv.struct<` (id `,`)?
+//                          `(`
+//                            (spirv-type (`[` struct-member-decoration `]`)?)*
+//                          `)>`
 static Type parseStructType(SPIRVDialect const &dialect,
                             DialectAsmParser &parser) {
   thread_local llvm::SetVector<StringRef> structContext;
@@ -603,7 +605,7 @@ static Type parseStructType(SPIRVDialect const &dialect,
   StringRef identifier;
   bool identifierExistsInCtx = false;
 
-  // Check if this is an idenitifed struct
+  // Check if this is an idenitifed struct type
   if (succeeded(parser.parseOptionalKeyword(&identifier))) {
     // Check if this is a possible recursive reference
     if (succeeded(parser.parseOptionalGreater())) {
@@ -746,7 +748,7 @@ static void print(StructType type, DialectAsmPrinter &os) {
 
   os << "struct<";
 
-  if (!type.getIdentifier().empty()) {
+  if (type.isIdentified()) {
     os << type.getIdentifier();
 
     if (structContext.count(type.getIdentifier()) == 0) {
@@ -785,7 +787,7 @@ static void print(StructType type, DialectAsmPrinter &os) {
                         printMember);
   os << ")>";
 
-  if (!type.getIdentifier().empty()) {
+  if (type.isIdentified()) {
     structContext.remove(type.getIdentifier());
   }
 }
