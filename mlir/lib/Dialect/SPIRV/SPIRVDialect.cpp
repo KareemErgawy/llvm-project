@@ -599,15 +599,22 @@ static Type parseStructType(SPIRVDialect const &dialect,
                             DialectAsmParser &parser) {
   thread_local llvm::SetVector<StringRef> structContext;
 
+  static auto removeIdentifierAndFail =
+      [](llvm::SetVector<StringRef> &structContext, StringRef identifier) {
+        if (!identifier.empty())
+          structContext.remove(identifier);
+
+        return Type();
+      };
+
   if (parser.parseLess())
     return Type();
 
   StringRef identifier;
-  bool identifierExistsInCtx = false;
 
-  // Check if this is an idenitifed struct type
+  // Check if this is an idenitifed struct type.
   if (succeeded(parser.parseOptionalKeyword(&identifier))) {
-    // Check if this is a possible recursive reference
+    // Check if this is a possible recursive reference.
     if (succeeded(parser.parseOptionalGreater())) {
       if (structContext.count(identifier) == 0) {
         parser.emitError(
@@ -620,25 +627,29 @@ static Type parseStructType(SPIRVDialect const &dialect,
       return StructType::getIdentified(dialect.getContext(), identifier);
     }
 
-    if (parser.parseComma())
+    if (failed(parser.parseComma()))
       return Type();
 
-    identifierExistsInCtx = (structContext.count(identifier) != 0);
+    if (structContext.count(identifier) != 0) {
+      parser.emitError(parser.getNameLoc(),
+                       "identifier already used for an enclosing struct");
+
+      return removeIdentifierAndFail(structContext, identifier);
+    }
+
     structContext.insert(identifier);
   }
 
-  if (parser.parseLParen())
-    return Type();
+  if (failed(parser.parseLParen()))
+    return removeIdentifierAndFail(structContext, identifier);
 
-  if (identifierExistsInCtx) {
-    parser.emitError(parser.getNameLoc(),
-                     "identifier already used for an enclosing struct");
+  if (succeeded(parser.parseOptionalRParen()) &&
+      succeeded(parser.parseOptionalGreater())) {
+    if (!identifier.empty())
+      structContext.remove(identifier);
 
-    return Type();
-  }
-
-  if (!parser.parseOptionalRParen() && !parser.parseOptionalGreater())
     return StructType::getEmpty(dialect.getContext(), identifier);
+  }
 
   StructType idStructTy;
 
@@ -653,13 +664,13 @@ static Type parseStructType(SPIRVDialect const &dialect,
   do {
     Type memberType;
     if (parser.parseType(memberType))
-      return Type();
+      return removeIdentifierAndFail(structContext, identifier);
     memberTypes.push_back(memberType);
 
     if (succeeded(parser.parseOptionalLSquare())) {
       if (parseStructMemberDecorations(dialect, parser, memberTypes, offsetInfo,
                                        memberDecorationInfo)) {
-        return Type();
+        return removeIdentifierAndFail(structContext, identifier);
       }
     }
   } while (succeeded(parser.parseOptionalComma()));
@@ -667,11 +678,11 @@ static Type parseStructType(SPIRVDialect const &dialect,
   if (!offsetInfo.empty() && memberTypes.size() != offsetInfo.size()) {
     parser.emitError(parser.getNameLoc(),
                      "offset specification must be given for all members");
-    return Type();
+    return removeIdentifierAndFail(structContext, identifier);
   }
 
-  if (parser.parseRParen() || parser.parseGreater())
-    return Type();
+  if (failed(parser.parseRParen()) || failed(parser.parseGreater()))
+    return removeIdentifierAndFail(structContext, identifier);
 
   if (!identifier.empty()) {
     idStructTy.trySetBody(memberTypes, offsetInfo, memberDecorationInfo);
