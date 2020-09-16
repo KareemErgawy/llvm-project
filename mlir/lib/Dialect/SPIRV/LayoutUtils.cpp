@@ -71,13 +71,9 @@ VulkanLayoutUtils::decorateType(spirv::StructType structType,
   if (!structType.isIdentified()) {
     return spirv::StructType::get(memberTypes, offsetInfo, memberDecorations);
   } else {
-    // TODO What should we do in that situation? Identified structs are uniqued
-    // by identifier so it is not possible to create 2 structs with the same
-    // name but different decorations.
-    //
-    // Should we, for example, add a random suffix in order to create a new
-    // struct type?
-    assert(false && "Identified structs are not supported.");
+    // Identified structs are uniqued by identifier so it is not possible
+    // to create 2 structs with the same name but different decorations.
+    return nullptr;
   }
 }
 

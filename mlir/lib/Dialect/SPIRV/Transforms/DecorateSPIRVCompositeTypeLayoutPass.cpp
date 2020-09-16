@@ -35,6 +35,11 @@ public:
     auto ptrType = op.type().cast<spirv::PointerType>();
     auto structType = VulkanLayoutUtils::decorateType(
         ptrType.getPointeeType().cast<spirv::StructType>());
+
+    if (!structType) {
+      return failure();
+    }
+
     auto decoratedType =
         spirv::PointerType::get(structType, ptrType.getStorageClass());
 
