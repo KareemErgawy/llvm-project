@@ -760,10 +760,10 @@ Optional<int64_t> SPIRVType::getSizeInBytes() {
 //===----------------------------------------------------------------------===//
 
 struct spirv::detail::StructTypeStorage : public TypeStorage {
-  StructTypeStorage(StringRef identifier, TypeStorageAllocator &allocator)
+  StructTypeStorage(StringRef identifier)
       : memberTypes(nullptr), offsetInfo(nullptr), numMemberDecorations(0),
         memberDecorationsInfo(nullptr), identifier(identifier),
-        allocator(&allocator), isBodySet(false) {}
+        isBodySet(false) {}
 
   StructTypeStorage(
       unsigned numMembers, Type const *memberTypes,
@@ -772,7 +772,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
       : memberTypes(memberTypes), offsetInfo(layoutInfo),
         numMembers(numMembers), numMemberDecorations(numMemberDecorations),
         memberDecorationsInfo(memberDecorationsInfo), identifier(StringRef()),
-        allocator(nullptr), isBodySet(false) {}
+        isBodySet(false) {}
 
   using KeyTy =
       std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
@@ -797,7 +797,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
       // Identified StructType body/members will be set through trySetBody(...)
       // later.
       return new (allocator.allocate<StructTypeStorage>())
-          StructTypeStorage(identifier, allocator);
+          StructTypeStorage(identifier);
     }
 
     ArrayRef<Type> keyTypes = std::get<1>(key);
@@ -854,9 +854,9 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
   bool isIdentified() const { return !identifier.empty(); }
 
   LogicalResult
-  trySetBody(ArrayRef<Type> memberTypes,
-             ArrayRef<StructType::OffsetInfo> offsetInfo,
-             ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
+  mutate(TypeStorageAllocator &allocator, ArrayRef<Type> memberTypes,
+         ArrayRef<StructType::OffsetInfo> offsetInfo,
+         ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
     if (!isIdentified() || isBodySet) {
       return failure();
     }
@@ -864,22 +864,21 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
     isBodySet = true;
     numMembers = memberTypes.size();
 
-    // Copy the member type and layout information into the bump pointer
+    // Copy the member type and layout information into the bump pointer.
     if (!memberTypes.empty()) {
-      this->memberTypes = allocator->copyInto(memberTypes).data();
+      this->memberTypes = allocator.copyInto(memberTypes).data();
     }
 
     if (!offsetInfo.empty()) {
       assert(offsetInfo.size() == memberTypes.size() &&
              "size of offset information must be same as the size of number of "
              "elements");
-      this->offsetInfo = allocator->copyInto(offsetInfo).data();
+      this->offsetInfo = allocator.copyInto(offsetInfo).data();
     }
 
     if (!memberDecorations.empty()) {
       this->numMemberDecorations = memberDecorations.size();
-      this->memberDecorationsInfo =
-          allocator->copyInto(memberDecorations).data();
+      memberDecorationsInfo = allocator.copyInto(memberDecorations).data();
     }
 
     return success();
@@ -892,7 +891,6 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
   StructType::MemberDecorationInfo const *memberDecorationsInfo;
 
   StringRef identifier;
-  TypeStorageAllocator *allocator;
   bool isBodySet;
 };
 
@@ -925,6 +923,12 @@ StructType StructType::getEmpty(MLIRContext *context, StringRef identifier) {
       context, identifier, ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
       ArrayRef<StructType::MemberDecorationInfo>());
   // Set an empty body in case this is a identified struct.
+  //
+  // TODO Once reviews.llvm.org/D87692 is merged, check the result of
+  // trySetBody(...) and return on failure. Also, document that fact that
+  // getEmpty(...) might fail in a multi-threaded setup if another thread
+  // created an identified struct with the same name between the above and
+  // following statements.
   newStructType.trySetBody(ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
                            ArrayRef<StructType::MemberDecorationInfo>());
   return newStructType;
@@ -982,7 +986,7 @@ LogicalResult
 StructType::trySetBody(ArrayRef<Type> memberTypes,
                        ArrayRef<OffsetInfo> offsetInfo,
                        ArrayRef<MemberDecorationInfo> memberDecorations) {
-  return getImpl()->trySetBody(memberTypes, offsetInfo, memberDecorations);
+  return Base::mutate(memberTypes, offsetInfo, memberDecorations);
 }
 
 void StructType::getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,

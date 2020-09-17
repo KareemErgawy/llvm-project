@@ -682,7 +682,10 @@ static Type parseStructType(SPIRVDialect const &dialect,
     return removeIdentifierAndFail(structContext, identifier);
 
   if (!identifier.empty()) {
-    idStructTy.trySetBody(memberTypes, offsetInfo, memberDecorationInfo);
+    if (failed(idStructTy.trySetBody(memberTypes, offsetInfo,
+                                     memberDecorationInfo)))
+      return Type();
+
     structContext.remove(identifier);
     return idStructTy;
   }
