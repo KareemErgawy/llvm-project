@@ -653,9 +653,8 @@ static Type parseStructType(SPIRVDialect const &dialect,
 
   StructType idStructTy;
 
-  if (!identifier.empty()) {
+  if (!identifier.empty())
     idStructTy = StructType::getIdentified(dialect.getContext(), identifier);
-  }
 
   SmallVector<Type, 4> memberTypes;
   SmallVector<StructType::OffsetInfo, 4> offsetInfo;
@@ -667,12 +666,10 @@ static Type parseStructType(SPIRVDialect const &dialect,
       return removeIdentifierAndFail(structContext, identifier);
     memberTypes.push_back(memberType);
 
-    if (succeeded(parser.parseOptionalLSquare())) {
+    if (succeeded(parser.parseOptionalLSquare()))
       if (parseStructMemberDecorations(dialect, parser, memberTypes, offsetInfo,
-                                       memberDecorationInfo)) {
+                                       memberDecorationInfo))
         return removeIdentifierAndFail(structContext, identifier);
-      }
-    }
   } while (succeeded(parser.parseOptionalComma()));
 
   if (!offsetInfo.empty() && memberTypes.size() != offsetInfo.size()) {

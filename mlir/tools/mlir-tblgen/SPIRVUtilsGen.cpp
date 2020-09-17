@@ -620,11 +620,10 @@ static void emitResultSerialization(const Operator &op, ArrayRef<SMLoc> loc,
   if (op.getNumResults() == 1) {
     StringRef resultTypeID("resultTypeID");
     os << tabs << formatv("uint32_t {0} = 0;\n", resultTypeID);
-    os << tabs << "llvm::SetVector<StringRef> serializationCtx;";
     os << tabs
-       << formatv("if (failed(processType({0}.getLoc(), {0}.getType(), {1}, "
-                  "serializationCtx))) {{\n",
-                  opVar, resultTypeID);
+       << formatv(
+              "if (failed(processType({0}.getLoc(), {0}.getType(), {1}))) {{\n",
+              opVar, resultTypeID);
     os << tabs << "  return failure();\n";
     os << tabs << "}\n";
     os << tabs << formatv("{0}.push_back({1});\n", operands, resultTypeID);

@@ -112,7 +112,7 @@ using BlockMergeInfoMap = DenseMap<Block *, BlockMergeInfo>;
 /// the struct's body is set with all member info.
 struct DeferredStructTypeInfo {
   // The ID of the deferred struct type.
-  uint32_t structID;
+  spirv::StructType deferredStructType;
 
   // A list of all unresolved member types for the struct. First element of each
   // item is operand ID, second element is member index in the struct.
@@ -120,7 +120,7 @@ struct DeferredStructTypeInfo {
 
   // The list of member types. For unresolved members, this list contains
   // place-holder empty types that will be updated later.
-  SmallVector<Type, 0> memberTypes;
+  SmallVector<Type, 4> memberTypes;
   SmallVector<spirv::StructType::OffsetInfo, 0> offsetInfo;
   SmallVector<spirv::StructType::MemberDecorationInfo, 0> memberDecorationsInfo;
 };
@@ -566,7 +566,7 @@ private:
   llvm::SetVector<uint32_t> typeForwardPointerIDs;
 
   // A list of all structs which have unresolved member types.
-  llvm::SmallVector<DeferredStructTypeInfo, 0> deferredStructTypesInfos;
+  SmallVector<DeferredStructTypeInfo, 0> deferredStructTypesInfos;
 };
 } // namespace
 
@@ -1267,12 +1267,13 @@ LogicalResult Deserializer::processOpTypePointer(ArrayRef<uint32_t> operands) {
 
     if (deferredStructIt->unresolvedMemberTypes.empty()) {
       // All deferred struct type members are now resolved, set the struct body.
-      auto structType =
-          typeMap[deferredStructIt->structID].dyn_cast<spirv::StructType>();
+      auto structType = deferredStructIt->deferredStructType;
 
       assert(structType && "Expected a spirv::StructType.");
       assert(structType.isIdentified() && "Expected an indentified struct.");
 
+      // TODO Once reviews.llvm.org/D87692 is merged, check the result
+      // of trySetBody(...) and return on failure.
       structType.trySetBody(deferredStructIt->memberTypes,
                             deferredStructIt->offsetInfo,
                             deferredStructIt->memberDecorationsInfo);
@@ -1403,7 +1404,7 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
 
   // First element is operand ID, second element is member index in the struct.
   SmallVector<std::pair<uint32_t, unsigned>, 0> unresolvedMemberTypes;
-  SmallVector<Type, 0> memberTypes;
+  SmallVector<Type, 4> memberTypes;
 
   for (auto op : llvm::drop_begin(operands, 1)) {
     Type memberType = getType(op);
@@ -1463,10 +1464,12 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
     typeMap[structID] = structTy;
 
     if (!unresolvedMemberTypes.empty()) {
-      deferredStructTypesInfos.push_back({structID, unresolvedMemberTypes,
+      deferredStructTypesInfos.push_back({structTy, unresolvedMemberTypes,
                                           memberTypes, offsetInfo,
                                           memberDecorationsInfo});
     } else {
+      // TODO Once reviews.llvm.org/D87692 is merged, check the result
+      // of trySetBody(...) and return on failure.
       structTy.trySetBody(memberTypes, offsetInfo, memberDecorationsInfo);
     }
   }

@@ -906,8 +906,6 @@ private:
 
   /// An optional location map to be populated.
   AsmState::LocationMap *locationMap;
-
-  llvm::SetVector<StringRef> structContext;
 };
 } // end namespace detail
 } // end namespace mlir

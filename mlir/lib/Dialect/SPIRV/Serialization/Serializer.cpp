@@ -259,8 +259,9 @@ private:
 
   /// Main dispatch method for serializing a type. The result <id> of the
   /// serialized type will be returned as `typeID`.
-  LogicalResult processType(Location loc, Type type, uint32_t &typeID,
-                            llvm::SetVector<StringRef> &serializationCtx);
+  LogicalResult processType(Location loc, Type type, uint32_t &typeID);
+  LogicalResult processTypeImpl(Location loc, Type type, uint32_t &typeID,
+                                llvm::SetVector<StringRef> &serializationCtx);
 
   /// Method for preparing basic SPIR-V type serialization. Returns the type's
   /// opcode and operands for the instruction via `typeEnum` and `operands`.
@@ -669,8 +670,7 @@ LogicalResult Serializer::processUndefOp(spirv::UndefOp op) {
   if (!id) {
     id = getNextID();
     uint32_t typeID = 0;
-    llvm::SetVector<StringRef> serializationCtx;
-    if (failed(processType(op.getLoc(), undefType, typeID, serializationCtx)) ||
+    if (failed(processType(op.getLoc(), undefType, typeID)) ||
         failed(encodeInstructionInto(typesGlobalValues, spirv::Opcode::OpUndef,
                                      {typeID, id}))) {
       return failure();
@@ -777,8 +777,7 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
 
   uint32_t fnTypeID = 0;
   // Generate type of the function.
-  llvm::SetVector<StringRef> serializationCtx;
-  processType(op.getLoc(), op.getType(), fnTypeID, serializationCtx);
+  processType(op.getLoc(), op.getType(), fnTypeID);
 
   // Add the function definition.
   SmallVector<uint32_t, 4> operands;
@@ -789,7 +788,7 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
   }
   if (failed(processType(op.getLoc(),
                          (resultTypes.empty() ? getVoidType() : resultTypes[0]),
-                         resTypeID, serializationCtx))) {
+                         resTypeID))) {
     return failure();
   }
   operands.push_back(resTypeID);
@@ -808,8 +807,7 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
   // Declare the parameters.
   for (auto arg : op.getArguments()) {
     uint32_t argTypeID = 0;
-    if (failed(processType(op.getLoc(), arg.getType(), argTypeID,
-                           serializationCtx))) {
+    if (failed(processType(op.getLoc(), arg.getType(), argTypeID))) {
       return failure();
     }
     auto argValueID = getNextID();
@@ -869,9 +867,7 @@ LogicalResult Serializer::processVariableOp(spirv::VariableOp op) {
   SmallVector<StringRef, 2> elidedAttrs;
   uint32_t resultID = 0;
   uint32_t resultTypeID = 0;
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(op.getLoc(), op.getType(), resultTypeID,
-                         serializationCtx))) {
+  if (failed(processType(op.getLoc(), op.getType(), resultTypeID))) {
     return failure();
   }
   operands.push_back(resultTypeID);
@@ -910,9 +906,7 @@ Serializer::processGlobalVariableOp(spirv::GlobalVariableOp varOp) {
   // Get TypeID.
   uint32_t resultTypeID = 0;
   SmallVector<StringRef, 4> elidedAttrs;
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(varOp.getLoc(), varOp.type(), resultTypeID,
-                         serializationCtx))) {
+  if (failed(processType(varOp.getLoc(), varOp.type(), resultTypeID))) {
     return failure();
   }
 
@@ -998,9 +992,15 @@ bool Serializer::isInterfaceStructPtrType(Type type) const {
   return false;
 }
 
+LogicalResult Serializer::processType(Location loc, Type type,
+                                      uint32_t &typeID) {
+  llvm::SetVector<StringRef> serializationCtx;
+  return processTypeImpl(loc, type, typeID, serializationCtx);
+}
+
 LogicalResult
-Serializer::processType(Location loc, Type type, uint32_t &typeID,
-                        llvm::SetVector<StringRef> &serializationCtx) {
+Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
+                            llvm::SetVector<StringRef> &serializationCtx) {
   typeID = getTypeID(type);
   if (typeID) {
     return success();
@@ -1090,8 +1090,8 @@ LogicalResult Serializer::prepareBasicType(
 
   if (auto vectorType = type.dyn_cast<VectorType>()) {
     uint32_t elementTypeID = 0;
-    if (failed(processType(loc, vectorType.getElementType(), elementTypeID,
-                           serializationCtx))) {
+    if (failed(processTypeImpl(loc, vectorType.getElementType(), elementTypeID,
+                               serializationCtx))) {
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeVector;
@@ -1103,8 +1103,8 @@ LogicalResult Serializer::prepareBasicType(
   if (auto arrayType = type.dyn_cast<spirv::ArrayType>()) {
     typeEnum = spirv::Opcode::OpTypeArray;
     uint32_t elementTypeID = 0;
-    if (failed(processType(loc, arrayType.getElementType(), elementTypeID,
-                           serializationCtx))) {
+    if (failed(processTypeImpl(loc, arrayType.getElementType(), elementTypeID,
+                               serializationCtx))) {
       return failure();
     }
     operands.push_back(elementTypeID);
@@ -1152,8 +1152,8 @@ LogicalResult Serializer::prepareBasicType(
       recursiveStructInfos[structType].push_back(
           {resultID, ptrType.getStorageClass()});
     } else {
-      if (failed(processType(loc, ptrType.getPointeeType(), pointeeTypeID,
-                             serializationCtx))) {
+      if (failed(processTypeImpl(loc, ptrType.getPointeeType(), pointeeTypeID,
+                                 serializationCtx))) {
         return failure();
       }
     }
@@ -1166,8 +1166,8 @@ LogicalResult Serializer::prepareBasicType(
 
   if (auto runtimeArrayType = type.dyn_cast<spirv::RuntimeArrayType>()) {
     uint32_t elementTypeID = 0;
-    if (failed(processType(loc, runtimeArrayType.getElementType(),
-                           elementTypeID, serializationCtx))) {
+    if (failed(processTypeImpl(loc, runtimeArrayType.getElementType(),
+                               elementTypeID, serializationCtx))) {
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeRuntimeArray;
@@ -1185,8 +1185,8 @@ LogicalResult Serializer::prepareBasicType(
     for (auto elementIndex :
          llvm::seq<uint32_t>(0, structType.getNumElements())) {
       uint32_t elementTypeID = 0;
-      if (failed(processType(loc, structType.getElementType(elementIndex),
-                             elementTypeID, serializationCtx))) {
+      if (failed(processTypeImpl(loc, structType.getElementType(elementIndex),
+                                 elementTypeID, serializationCtx))) {
         return failure();
       }
       operands.push_back(elementTypeID);
@@ -1226,8 +1226,8 @@ LogicalResult Serializer::prepareBasicType(
   if (auto cooperativeMatrixType =
           type.dyn_cast<spirv::CooperativeMatrixNVType>()) {
     uint32_t elementTypeID = 0;
-    if (failed(processType(loc, cooperativeMatrixType.getElementType(),
-                           elementTypeID, serializationCtx))) {
+    if (failed(processTypeImpl(loc, cooperativeMatrixType.getElementType(),
+                               elementTypeID, serializationCtx))) {
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeCooperativeMatrixNV;
@@ -1245,8 +1245,8 @@ LogicalResult Serializer::prepareBasicType(
 
   if (auto matrixType = type.dyn_cast<spirv::MatrixType>()) {
     uint32_t elementTypeID = 0;
-    if (failed(processType(loc, matrixType.getColumnType(), elementTypeID,
-                           serializationCtx))) {
+    if (failed(processTypeImpl(loc, matrixType.getColumnType(), elementTypeID,
+                               serializationCtx))) {
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeMatrix;
@@ -1267,16 +1267,15 @@ Serializer::prepareFunctionType(Location loc, FunctionType type,
   assert(type.getNumResults() <= 1 &&
          "serialization supports only a single return value");
   uint32_t resultID = 0;
-  llvm::SetVector<StringRef> serializationCtx;
   if (failed(processType(
           loc, type.getNumResults() == 1 ? type.getResult(0) : getVoidType(),
-          resultID, serializationCtx))) {
+          resultID))) {
     return failure();
   }
   operands.push_back(resultID);
   for (auto &res : type.getInputs()) {
     uint32_t argTypeID = 0;
-    if (failed(processType(loc, res, argTypeID, serializationCtx))) {
+    if (failed(processType(loc, res, argTypeID))) {
       return failure();
     }
     operands.push_back(argTypeID);
@@ -1302,8 +1301,7 @@ uint32_t Serializer::prepareConstant(Location loc, Type constType,
   }
 
   uint32_t typeID = 0;
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(loc, constType, typeID, serializationCtx))) {
+  if (failed(processType(loc, constType, typeID))) {
     return 0;
   }
 
@@ -1329,8 +1327,7 @@ uint32_t Serializer::prepareConstant(Location loc, Type constType,
 uint32_t Serializer::prepareArrayConstant(Location loc, Type constType,
                                           ArrayAttr attr) {
   uint32_t typeID = 0;
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(loc, constType, typeID, serializationCtx))) {
+  if (failed(processType(loc, constType, typeID))) {
     return 0;
   }
 
@@ -1372,8 +1369,7 @@ Serializer::prepareDenseElementsConstant(Location loc, Type constType,
   }
 
   uint32_t typeID = 0;
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(loc, constType, typeID, serializationCtx))) {
+  if (failed(processType(loc, constType, typeID))) {
     return 0;
   }
 
@@ -1422,8 +1418,7 @@ uint32_t Serializer::prepareConstantBool(Location loc, BoolAttr boolAttr,
 
   // Process the type for this bool literal
   uint32_t typeID = 0;
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(loc, boolAttr.getType(), typeID, serializationCtx))) {
+  if (failed(processType(loc, boolAttr.getType(), typeID))) {
     return 0;
   }
 
@@ -1452,8 +1447,7 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
 
   // Process the type for this integer literal
   uint32_t typeID = 0;
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(loc, intAttr.getType(), typeID, serializationCtx))) {
+  if (failed(processType(loc, intAttr.getType(), typeID))) {
     return 0;
   }
 
@@ -1519,8 +1513,7 @@ uint32_t Serializer::prepareConstantFp(Location loc, FloatAttr floatAttr,
 
   // Process the type for this float literal
   uint32_t typeID = 0;
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(loc, floatAttr.getType(), typeID, serializationCtx))) {
+  if (failed(processType(loc, floatAttr.getType(), typeID))) {
     return 0;
   }
 
@@ -1640,9 +1633,7 @@ LogicalResult Serializer::emitPhiForBlockArguments(Block *block) {
 
     // Get the type <id> and result <id> for this OpPhi instruction.
     uint32_t phiTypeID = 0;
-    llvm::SetVector<StringRef> serializationCtx;
-    if (failed(processType(arg.getLoc(), arg.getType(), phiTypeID,
-                           serializationCtx)))
+    if (failed(processType(arg.getLoc(), arg.getType(), phiTypeID)))
       return failure();
     uint32_t phiID = getNextID();
 
@@ -2010,8 +2001,7 @@ Serializer::processOp<spirv::FunctionCallOp>(spirv::FunctionCallOp op) {
   uint32_t resTypeID = 0;
 
   Type resultTy = op.getNumResults() ? *op.result_type_begin() : getVoidType();
-  llvm::SetVector<StringRef> serializationCtx;
-  if (failed(processType(op.getLoc(), resultTy, resTypeID, serializationCtx)))
+  if (failed(processType(op.getLoc(), resultTy, resTypeID)))
     return failure();
 
   auto funcID = getOrCreateFunctionID(funcName);
