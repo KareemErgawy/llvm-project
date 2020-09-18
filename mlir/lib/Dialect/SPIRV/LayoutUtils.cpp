@@ -68,13 +68,12 @@ VulkanLayoutUtils::decorateType(spirv::StructType structType,
   alignment = maxMemberAlignment;
   structType.getMemberDecorations(memberDecorations);
 
-  if (!structType.isIdentified()) {
+  if (!structType.isIdentified())
     return spirv::StructType::get(memberTypes, offsetInfo, memberDecorations);
-  } else {
+  else
     // Identified structs are uniqued by identifier so it is not possible
     // to create 2 structs with the same name but different decorations.
     return nullptr;
-  }
 }
 
 Type VulkanLayoutUtils::decorateType(Type type, VulkanLayoutUtils::Size &size,

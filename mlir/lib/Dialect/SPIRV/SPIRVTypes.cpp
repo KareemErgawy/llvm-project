@@ -909,23 +909,20 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
   mutate(TypeStorageAllocator &allocator, ArrayRef<Type> memberTypes,
          ArrayRef<StructType::OffsetInfo> offsetInfo,
          ArrayRef<StructType::MemberDecorationInfo> memberDecorationsInfo) {
-    if (!isIdentified()) {
+    if (!isIdentified())
       return failure();
-    }
 
     if (isBodySet &&
         (getMemberTypes() != memberTypes || getOffsetInfo() != offsetInfo ||
-         getMemberDecorationsInfo() != memberDecorationsInfo)) {
+         getMemberDecorationsInfo() != memberDecorationsInfo))
       return failure();
-    }
 
     isBodySet = true;
     numMembers = memberTypes.size();
 
     // Copy the member type and layout information into the bump pointer.
-    if (!memberTypes.empty()) {
+    if (!memberTypes.empty())
       this->memberTypes = allocator.copyInto(memberTypes).data();
-    }
 
     if (!offsetInfo.empty()) {
       assert(offsetInfo.size() == memberTypes.size() &&

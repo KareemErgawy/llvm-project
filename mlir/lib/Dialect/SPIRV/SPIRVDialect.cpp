@@ -798,9 +798,8 @@ static void print(StructType type, DialectAsmPrinter &os) {
                         printMember);
   os << ")>";
 
-  if (type.isIdentified()) {
+  if (type.isIdentified())
     structContext.remove(type.getIdentifier());
-  }
 }
 
 static void print(CooperativeMatrixNVType type, DialectAsmPrinter &os) {

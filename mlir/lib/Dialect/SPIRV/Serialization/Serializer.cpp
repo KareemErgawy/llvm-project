@@ -1022,10 +1022,8 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
     } else {
       typeIDMap[type] = typeID;
 
-      if (failed(
-              encodeInstructionInto(typesGlobalValues, typeEnum, operands))) {
+      if (failed(encodeInstructionInto(typesGlobalValues, typeEnum, operands)))
         return failure();
-      }
 
       if (recursiveStructInfos.count(type) != 0) {
         // This recursive struct type is emitted already, now the OpTypePointer
@@ -1040,9 +1038,8 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
 
           if (failed(encodeInstructionInto(typesGlobalValues,
                                            spirv::Opcode::OpTypePointer,
-                                           ptrOperands))) {
+                                           ptrOperands)))
             return failure();
-          }
         }
 
         recursiveStructInfos[type].clear();
@@ -1139,9 +1136,8 @@ LogicalResult Serializer::prepareBasicType(
       auto structType = spirv::StructType::getIdentified(
           module.getContext(), pointeeStruct.getIdentifier());
 
-      if (!structType) {
+      if (!structType)
         return failure();
-      }
 
       // 3. Mark the OpTypePointer that is supposed to be emitted by this call
       // as deferred.
@@ -1153,9 +1149,8 @@ LogicalResult Serializer::prepareBasicType(
           {resultID, ptrType.getStorageClass()});
     } else {
       if (failed(processTypeImpl(loc, ptrType.getPointeeType(), pointeeTypeID,
-                                 serializationCtx))) {
+                                 serializationCtx)))
         return failure();
-      }
     }
 
     typeEnum = spirv::Opcode::OpTypePointer;
@@ -1216,9 +1211,8 @@ LogicalResult Serializer::prepareBasicType(
 
     typeEnum = spirv::Opcode::OpTypeStruct;
 
-    if (structType.isIdentified()) {
+    if (structType.isIdentified())
       serializationCtx.remove(structType.getIdentifier());
-    }
 
     return success();
   }

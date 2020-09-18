@@ -54,9 +54,8 @@ createGlobalVarForEntryPointArgument(OpBuilder &builder, spirv::FuncOp funcOp,
   varPointeeType =
       VulkanLayoutUtils::decorateType(varPointeeType).cast<spirv::StructType>();
 
-  if (!varPointeeType) {
+  if (!varPointeeType)
     return nullptr;
-  }
 
   varType =
       spirv::PointerType::get(varPointeeType, varPtrType.getStorageClass());

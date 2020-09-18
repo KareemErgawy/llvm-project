@@ -1231,16 +1231,14 @@ LogicalResult Deserializer::processType(spirv::Opcode opcode,
 }
 
 LogicalResult Deserializer::processOpTypePointer(ArrayRef<uint32_t> operands) {
-  if (operands.size() != 3) {
+  if (operands.size() != 3)
     return emitError(unknownLoc, "OpTypePointer must have two parameters");
-  }
 
   auto pointeeType = getType(operands[2]);
 
-  if (!pointeeType) {
+  if (!pointeeType)
     return emitError(unknownLoc, "unknown OpTypePointer pointee type <id> ")
            << operands[2];
-  }
 
   uint32_t typePointerID = operands[0];
   auto storageClass = static_cast<spirv::StorageClass>(operands[1]);
@@ -1410,14 +1408,12 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
     Type memberType = getType(op);
     bool typeForwardPtr = (typeForwardPointerIDs.count(op) != 0);
 
-    if (!memberType && !typeForwardPtr) {
+    if (!memberType && !typeForwardPtr)
       return emitError(unknownLoc, "OpTypeStruct references undefined <id> ")
              << op;
-    }
 
-    if (!memberType) {
+    if (!memberType)
       unresolvedMemberTypes.emplace_back(op, memberTypes.size());
-    }
 
     memberTypes.push_back(memberType);
   }
@@ -2464,10 +2460,9 @@ LogicalResult Deserializer::processUndef(ArrayRef<uint32_t> operands) {
 
 LogicalResult
 Deserializer::processTypeForwardPointer(ArrayRef<uint32_t> operands) {
-  if (operands.size() != 2) {
+  if (operands.size() != 2)
     return emitError(unknownLoc,
                      "OpTypeForwardPointer instruction must have two operands");
-  }
 
   typeForwardPointerIDs.insert(operands[0]);
   // TODO Use the 2nd operand (Storage Class) to validate the OpTypePointer
