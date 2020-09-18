@@ -897,11 +897,25 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
 
   bool isIdentified() const { return !identifier.empty(); }
 
+  /// Sets the struct type content for identified structs. Calling this method
+  /// is only valid for identified structs.
+  ///
+  /// Fails under the following conditions:
+  /// - If called for a literal struct;
+  /// - If called for an identified struct whose body was set before (through a
+  /// call to this method) but with different contents from the passed
+  /// arguments.
   LogicalResult
   mutate(TypeStorageAllocator &allocator, ArrayRef<Type> memberTypes,
          ArrayRef<StructType::OffsetInfo> offsetInfo,
-         ArrayRef<StructType::MemberDecorationInfo> memberDecorations) {
-    if (!isIdentified() || isBodySet) {
+         ArrayRef<StructType::MemberDecorationInfo> memberDecorationsInfo) {
+    if (!isIdentified()) {
+      return failure();
+    }
+
+    if (isBodySet &&
+        (getMemberTypes() != memberTypes || getOffsetInfo() != offsetInfo ||
+         getMemberDecorationsInfo() != memberDecorationsInfo)) {
       return failure();
     }
 
@@ -920,9 +934,10 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
       this->offsetInfo = allocator.copyInto(offsetInfo).data();
     }
 
-    if (!memberDecorations.empty()) {
-      this->numMemberDecorations = memberDecorations.size();
-      memberDecorationsInfo = allocator.copyInto(memberDecorations).data();
+    if (!memberDecorationsInfo.empty()) {
+      this->numMemberDecorations = memberDecorationsInfo.size();
+      this->memberDecorationsInfo =
+          allocator.copyInto(memberDecorationsInfo).data();
     }
 
     return success();
@@ -967,14 +982,12 @@ StructType StructType::getEmpty(MLIRContext *context, StringRef identifier) {
       context, identifier, ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
       ArrayRef<StructType::MemberDecorationInfo>());
   // Set an empty body in case this is a identified struct.
-  //
-  // TODO Once reviews.llvm.org/D87692 is merged, check the result of
-  // trySetBody(...) and return on failure. Also, document that fact that
-  // getEmpty(...) might fail in a multi-threaded setup if another thread
-  // created an identified struct with the same name between the above and
-  // following statements.
-  newStructType.trySetBody(ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
-                           ArrayRef<StructType::MemberDecorationInfo>());
+  if (newStructType.isIdentified() &&
+      failed(newStructType.trySetBody(
+          ArrayRef<Type>(), ArrayRef<StructType::OffsetInfo>(),
+          ArrayRef<StructType::MemberDecorationInfo>())))
+    return StructType();
+
   return newStructType;
 }
 

@@ -1272,11 +1272,11 @@ LogicalResult Deserializer::processOpTypePointer(ArrayRef<uint32_t> operands) {
       assert(structType && "Expected a spirv::StructType.");
       assert(structType.isIdentified() && "Expected an indentified struct.");
 
-      // TODO Once reviews.llvm.org/D87692 is merged, check the result
-      // of trySetBody(...) and return on failure.
-      structType.trySetBody(deferredStructIt->memberTypes,
-                            deferredStructIt->offsetInfo,
-                            deferredStructIt->memberDecorationsInfo);
+      if (failed(structType.trySetBody(
+              deferredStructIt->memberTypes, deferredStructIt->offsetInfo,
+              deferredStructIt->memberDecorationsInfo)))
+        return failure();
+
       deferredStructIt = deferredStructTypesInfos.erase(deferredStructIt);
     } else {
       ++deferredStructIt;
@@ -1463,15 +1463,13 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
     auto structTy = spirv::StructType::getIdentified(context, structIdentifier);
     typeMap[structID] = structTy;
 
-    if (!unresolvedMemberTypes.empty()) {
+    if (!unresolvedMemberTypes.empty())
       deferredStructTypesInfos.push_back({structTy, unresolvedMemberTypes,
                                           memberTypes, offsetInfo,
                                           memberDecorationsInfo});
-    } else {
-      // TODO Once reviews.llvm.org/D87692 is merged, check the result
-      // of trySetBody(...) and return on failure.
-      structTy.trySetBody(memberTypes, offsetInfo, memberDecorationsInfo);
-    }
+    else if (failed(structTy.trySetBody(memberTypes, offsetInfo,
+                                        memberDecorationsInfo)))
+      return failure();
   }
 
   // TODO: Update StructType to have member name as attribute as
