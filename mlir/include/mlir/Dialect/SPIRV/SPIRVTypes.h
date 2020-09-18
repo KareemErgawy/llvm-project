@@ -309,6 +309,10 @@ public:
   static StructType getIdentified(MLIRContext *context, StringRef identifier);
 
   /// Construct a (possibly identified) StructType with no members.
+  ///
+  /// Note: this method might fail in a multi-threaded setup if another thread
+  /// created an identified struct with the same identifier but with different
+  /// contents before returning. In which case, an empty StructType is returned.
   static StructType getEmpty(MLIRContext *context, StringRef identifier = "");
 
   StringRef getIdentifier() const;

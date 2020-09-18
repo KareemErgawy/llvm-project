@@ -759,12 +759,31 @@ Optional<int64_t> SPIRVType::getSizeInBytes() {
 // StructType
 //===----------------------------------------------------------------------===//
 
+/// Type storage for SPIR-V structure types:
+///
+/// Structures are uniqued using:
+/// - for identified structs:
+///   - a string identifier;
+/// - for literal structs:
+///   - a list of member types;
+///   - a list of member offset info;
+///   - a list of member decoration info.
+///
+/// Identified structures only have a mutable component consisting of:
+/// - a list of member types;
+/// - a list of member offset info;
+/// - a list of member decoration info.
 struct spirv::detail::StructTypeStorage : public TypeStorage {
+  /// Construct a storage object for an identified struct type. A struct type
+  /// associated with such storage must call StructType::trySetBody(...) later
+  /// in order to mutate the storage object providing the actual content.
   StructTypeStorage(StringRef identifier)
       : memberTypes(nullptr), offsetInfo(nullptr), numMemberDecorations(0),
         memberDecorationsInfo(nullptr), identifier(identifier),
         isBodySet(false) {}
 
+  /// Construct a storage object for a literal struct type. A struct type
+  /// associated with such storage is immutable.
   StructTypeStorage(
       unsigned numMembers, Type const *memberTypes,
       StructType::OffsetInfo const *layoutInfo, unsigned numMemberDecorations,
@@ -774,10 +793,29 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
         memberDecorationsInfo(memberDecorationsInfo), identifier(StringRef()),
         isBodySet(false) {}
 
+  /// A storage key is divided into 2 parts:
+  /// - for identified structs:
+  ///   - a StringRef representing the struct identifier;
+  /// - for literal structs:
+  ///   - an ArrayRef<Type> for member types;
+  ///   - an ArrayRef<StructType::OffsetInfo> for member offset info;
+  ///   - an ArrayRef<StructType::MemberDecorationInfo> for member decoration
+  ///   info.
+  ///
+  /// An identified struct type is uniqued only by the first part (field 0)
+  /// of the key.
+  ///
+  /// A literal struct type is unqiued only by the second part (fields 1, 2, and
+  /// 3) of the key.
   using KeyTy =
       std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
                  ArrayRef<StructType::MemberDecorationInfo>>;
 
+  /// For idetified structs, return true if the given key contains the same
+  /// identifier.
+  ///
+  /// For literal structs, return true if the given key contains a matching list
+  /// of member types + offset info + decoration info.
   bool operator==(const KeyTy &key) const {
     if (isIdentified())
       // Identified types are uniqued by their identifier.
@@ -787,6 +825,12 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
                           getMemberDecorationsInfo());
   }
 
+  /// If the given key contains a non-empty identifier, this method constructs
+  /// an identified struct and leaves the rest of the struct type data to be set
+  /// through a later call to StructType::trySetBody(...).
+  ///
+  /// If, on the other hand, the key contains an empty identifier, a literal
+  /// struct is constructed using the other fields of the key.
   static StructTypeStorage *construct(TypeStorageAllocator &allocator,
                                       const KeyTy &key) {
     StringRef keyIdentifier = std::get<0>(key);
