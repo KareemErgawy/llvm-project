@@ -596,3 +596,157 @@ func @use_in_function() -> () {
   spv.specConstant @sc = false
   return
 }
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// spv.specConstantComposite
+//===----------------------------------------------------------------------===//
+
+spv.module Logical GLSL450 {
+  // expected-error @+1 {{result type must be a composite type}}
+  spv.specConstantComposite @scc2 (@sc1, @sc2, @sc3) : i32
+}
+
+//===----------------------------------------------------------------------===//
+// spv.specConstantComposite (spv.array)
+//===----------------------------------------------------------------------===//
+
+// -----
+
+spv.module Logical GLSL450 {
+  // CHECK: spv.specConstant @sc1 = 1.500000e+00 : f32
+  spv.specConstant @sc1 = 1.5 : f32
+  // CHECK: spv.specConstant @sc2 = 2.500000e+00 : f32
+  spv.specConstant @sc2 = 2.5 : f32
+  // CHECK: spv.specConstant @sc3 = 3.500000e+00 : f32
+  spv.specConstant @sc3 = 3.5 : f32
+  // CHECK: spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.array<3 x f32>
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.array<3 x f32>
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = false
+  spv.specConstant @sc2 spec_id(5) = 42 : i64
+  spv.specConstant @sc3 = 1.5 : f32
+  // expected-error @+1 {{has incorrect number of operands: expected 4, but provided 3}}
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.array<4 x f32>
+
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = 1   : i32
+  spv.specConstant @sc2 = 2.5 : f32
+  spv.specConstant @sc3 = 3.5 : f32
+  // expected-error @+1 {{has incorrect types of operands: expected 'f32', but provided 'i32'}}
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.array<3 x f32>
+}
+
+//===----------------------------------------------------------------------===//
+// spv.specConstantComposite (spv.struct)
+//===----------------------------------------------------------------------===//
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = 1   : i32
+  spv.specConstant @sc2 = 2.5 : f32
+  spv.specConstant @sc3 = 3.5 : f32
+  // CHECK: spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.struct<i32, f32, f32>
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.struct<i32, f32, f32>
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = 1   : i32
+  spv.specConstant @sc2 = 2.5 : f32
+  spv.specConstant @sc3 = 3.5 : f32
+  // expected-error @+1 {{has incorrect number of operands: expected 2, but provided 3}}
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.struct<i32, f32>
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = 1.5 : f32
+  spv.specConstant @sc2 = 2.5 : f32
+  spv.specConstant @sc3 = 3.5 : f32
+  // expected-error @+1 {{has incorrect types of operands: expected 'i32', but provided 'f32'}}
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.struct<i32, f32, f32>
+}
+
+//===----------------------------------------------------------------------===//
+// spv.specConstantComposite (vector)
+//===----------------------------------------------------------------------===//
+
+// -----
+
+spv.module Logical GLSL450 {
+  // CHECK: spv.specConstant @sc1 = 1.500000e+00 : f32
+  spv.specConstant @sc1 = 1.5 : f32
+  // CHECK: spv.specConstant @sc2 = 2.500000e+00 : f32
+  spv.specConstant @sc2 = 2.5 : f32
+  // CHECK: spv.specConstant @sc3 = 3.500000e+00 : f32
+  spv.specConstant @sc3 = 3.5 : f32
+  // CHECK: spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : vector<3xf32>
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : vector<3 x f32>
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = false
+  spv.specConstant @sc2 spec_id(5) = 42 : i64
+  spv.specConstant @sc3 = 1.5 : f32
+  // expected-error @+1 {{has incorrect number of operands: expected 4, but provided 3}}
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : vector<4xf32>
+
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = 1   : i32
+  spv.specConstant @sc2 = 2.5 : f32
+  spv.specConstant @sc3 = 3.5 : f32
+  // expected-error @+1 {{has incorrect types of operands: expected 'f32', but provided 'i32'}}
+  spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : vector<3xf32>
+}
+
+//===----------------------------------------------------------------------===//
+// spv.specConstantComposite (spv.coopmatrix)
+//===----------------------------------------------------------------------===//
+
+// TODO Are there restrictions on the Scope element of specialization constants
+// with type spv.coopmatrix? I think, it makes sense to allow only 'Device' or
+// 'CrossDevice' Scopes.
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = 1.5 : f32
+  // CHECK: spv.specConstantComposite @scc (@sc1) : !spv.coopmatrix<8x16xf32, Device>
+  spv.specConstantComposite @scc (@sc1) : !spv.coopmatrix<8x16xf32, Device>
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = 1.5 : f32
+  spv.specConstant @sc2 = 2.5 : f32
+  // expected-error @+1 {{has incorrect number of operands: expected 1, but provided 2}}
+  spv.specConstantComposite @scc (@sc1, @sc2) : !spv.coopmatrix<8x16xf32, Device>
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  spv.specConstant @sc1 = 1 : i32
+  // expected-error @+1 {{has incorrect types of operands: expected 'f32', but provided 'i32'}}
+  spv.specConstantComposite @scc (@sc1) : !spv.coopmatrix<8x16xf32, Device>
+}
