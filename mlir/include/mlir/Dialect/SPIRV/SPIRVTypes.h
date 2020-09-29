@@ -306,13 +306,17 @@ public:
   /// (member types, offset info, and decorations) is not set yet. A call to
   /// StructType::trySetBody(...) must follow when the StructType contents are
   /// available (e.g. parsed or deserialized).
+  ///
+  /// Note: If another thread creates (or had already created) a struct with the
+  /// same identifier, that struct will be returned as a result.
   static StructType getIdentified(MLIRContext *context, StringRef identifier);
 
   /// Construct a (possibly identified) StructType with no members.
   ///
   /// Note: this method might fail in a multi-threaded setup if another thread
   /// created an identified struct with the same identifier but with different
-  /// contents before returning. In which case, an empty StructType is returned.
+  /// contents before returning. In which case, an empty (default-constructed)
+  /// StructType is returned.
   static StructType getEmpty(MLIRContext *context, StringRef identifier = "");
 
   StringRef getIdentifier() const;

@@ -806,7 +806,7 @@ struct spirv::detail::StructTypeStorage : public TypeStorage {
   /// of the key.
   ///
   /// A literal struct type is unqiued only by the second part (fields 1, 2, and
-  /// 3) of the key.
+  /// 3) of the key. The identifier field (field 0) must be empty.
   using KeyTy =
       std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StructType::OffsetInfo>,
                  ArrayRef<StructType::MemberDecorationInfo>>;

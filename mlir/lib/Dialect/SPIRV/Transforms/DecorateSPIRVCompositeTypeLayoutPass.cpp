@@ -36,9 +36,8 @@ public:
     auto structType = VulkanLayoutUtils::decorateType(
         ptrType.getPointeeType().cast<spirv::StructType>());
 
-    if (!structType) {
+    if (!structType)
       return failure();
-    }
 
     auto decoratedType =
         spirv::PointerType::get(structType, ptrType.getStorageClass());

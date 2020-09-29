@@ -111,7 +111,6 @@ using BlockMergeInfoMap = DenseMap<Block *, BlockMergeInfo>;
 /// spirv::StructType. Once all forward references for the struct are resolved,
 /// the struct's body is set with all member info.
 struct DeferredStructTypeInfo {
-  // The ID of the deferred struct type.
   spirv::StructType deferredStructType;
 
   // A list of all unresolved member types for the struct. First element of each
