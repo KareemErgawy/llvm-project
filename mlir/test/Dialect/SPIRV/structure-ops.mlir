@@ -615,11 +615,8 @@ spv.module Logical GLSL450 {
 // -----
 
 spv.module Logical GLSL450 {
-  // CHECK: spv.specConstant @sc1 = 1.500000e+00 : f32
   spv.specConstant @sc1 = 1.5 : f32
-  // CHECK: spv.specConstant @sc2 = 2.500000e+00 : f32
   spv.specConstant @sc2 = 2.5 : f32
-  // CHECK: spv.specConstant @sc3 = 3.500000e+00 : f32
   spv.specConstant @sc3 = 3.5 : f32
   // CHECK: spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.array<3 x f32>
   spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.array<3 x f32>
@@ -687,11 +684,8 @@ spv.module Logical GLSL450 {
 // -----
 
 spv.module Logical GLSL450 {
-  // CHECK: spv.specConstant @sc1 = 1.500000e+00 : f32
   spv.specConstant @sc1 = 1.5 : f32
-  // CHECK: spv.specConstant @sc2 = 2.500000e+00 : f32
   spv.specConstant @sc2 = 2.5 : f32
-  // CHECK: spv.specConstant @sc3 = 3.500000e+00 : f32
   spv.specConstant @sc3 = 3.5 : f32
   // CHECK: spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : vector<3xf32>
   spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : vector<3 x f32>
