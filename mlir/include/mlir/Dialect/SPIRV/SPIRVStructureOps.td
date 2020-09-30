@@ -491,6 +491,8 @@ def SPV_ReferenceOfOp : SPV_Op<"_reference_of", [NoSideEffect]> {
     ```mlir
     %0 = spv._reference_of @spec_const : f32
     ```
+
+    TODO Add support for composite specialization constants.
   }];
 
   let arguments = (ins
@@ -563,16 +565,20 @@ def SPV_SpecConstantCompositeOp : SPV_Op<"specConstantComposite", [InModuleScope
     the `OpSpecConstantComposite` SPIR-V instruction. Scalar constants are
     covered by `spv.specConstant`.
 
-    <!-- End of AutoGen section -->
+    A constituent of a spec constant composite can be:
+    - A symbol referring of another spec constant.
+    - The SSA ID of a non-specialization constant (i.e. defined through
+      `spv.specConstant`).
+    - The SSA ID of a `spv.undef`.
 
     ```
     spv-spec-constant-composite-op ::= `spv.specConstantComposite` symbol-ref-id ` (`
-                                       (symbol-ref-id (`, ` symbol-ref-id)*)?
+                                       symbol-ref-id (`, ` symbol-ref-id)*
                                        `) :` composite-type
     ```
 
      where `composite-type` is some non-scalar type that can be represented in the `spv`
-     dialect: `spv.struct`, `spv.array`, `vector`, or `spv.coopmatrix`.
+     dialect: `spv.struct`, `spv.array`, or `vector`.
 
      #### Example:
 
@@ -582,6 +588,11 @@ def SPV_SpecConstantCompositeOp : SPV_Op<"specConstantComposite", [InModuleScope
      spv.specConstant @sc3 = 3.5 : f32
      spv.specConstantComposite @scc (@sc1, @sc2, @sc3) : !spv.struct<i32, f32, f32>
      ```
+
+    TODO Add support for constituents that are:
+    - regular constants.
+    - undef.
+    - spec constant composite.
   }];
 
   let arguments = (ins

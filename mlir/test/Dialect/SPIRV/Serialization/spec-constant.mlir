@@ -44,7 +44,4 @@ spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
 
   // CHECK: spv.specConstantComposite @scc_vector (@sc_f32_1, @sc_f32_2, @sc_f32_3) : vector<3xf32>
   spv.specConstantComposite @scc_vector (@sc_f32_1, @sc_f32_2, @sc_f32_3) : vector<3 x f32>
-
-  // CHECK: spv.specConstantComposite @scc_coopmatrix (@sc_f32_1) : !spv.coopmatrix<8x16xf32, Device>
-  spv.specConstantComposite @scc_coopmatrix (@sc_f32_1) : !spv.coopmatrix<8x16xf32, Device>
 }

@@ -3292,27 +3292,6 @@ static LogicalResult verifyMatrixTimesMatrix(spirv::MatrixTimesMatrixOp op) {
 // spv.specConstantComposite
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verifySpecConstantCompositeImpl(
-    Type type, ArrayRef<Attribute> constituents,
-    std::function<InFlightDiagnostic(StringRef)> emitError) {
-  auto cType = type.dyn_cast<spirv::CompositeType>();
-  if (!cType)
-    return emitError("result type must be a composite type, but provided ")
-           << type;
-
-  if (cType.isa<spirv::CooperativeMatrixNVType>()) {
-    if (constituents.size() != 1)
-      return emitError("has incorrect number of operands: expected ")
-             << "1, but provided " << constituents.size();
-  } else if (constituents.size() != cType.getNumElements()) {
-    return emitError("has incorrect number of operands: expected ")
-           << cType.getNumElements() << ", but provided "
-           << constituents.size();
-  }
-
-  return success();
-}
-
 static ParseResult parseSpecConstantCompositeOp(OpAsmParser &parser,
                                                 OperationState &state) {
 
@@ -3327,8 +3306,8 @@ static ParseResult parseSpecConstantCompositeOp(OpAsmParser &parser,
   SmallVector<Attribute, 4> constituents;
 
   do {
-    // The name of the constituent attribute isnt important
-    const auto *attrName = "spec_const";
+    // The name of the constituent attribute isn't important
+    const char *attrName = "spec_const";
     FlatSymbolRefAttr specConstRef;
     NamedAttrList attrs;
 
@@ -3344,15 +3323,8 @@ static ParseResult parseSpecConstantCompositeOp(OpAsmParser &parser,
   state.addAttribute(kCompositeSpecConstituentsName,
                      parser.getBuilder().getArrayAttr(constituents));
 
-  auto loc = parser.getCurrentLocation();
   Type type;
   if (parser.parseColonType(type))
-    return failure();
-
-  if (failed(verifySpecConstantCompositeImpl(
-          type, constituents, [&parser, &loc](StringRef msg) {
-            return parser.emitError(loc, msg);
-          })))
     return failure();
 
   state.addAttribute(kTypeAttrName, TypeAttr::get(type));
@@ -3376,15 +3348,21 @@ static LogicalResult verify(spirv::SpecConstantCompositeOp constOp) {
   auto cType = constOp.type().dyn_cast<spirv::CompositeType>();
   auto constituents = constOp.constituents().getValue();
 
-  if (failed(verifySpecConstantCompositeImpl(
-          constOp.type(), constituents,
-          [&constOp](StringRef msg) { return constOp.emitError(msg); })))
-    return failure();
+  if (!cType)
+    return constOp.emitError(
+               "result type must be a composite type, but provided ")
+           << constOp.type();
+
+  if (cType.isa<spirv::CooperativeMatrixNVType>())
+    return constOp.emitError("unsupported composite type  ") << cType;
+  else if (constituents.size() != cType.getNumElements())
+    return constOp.emitError("has incorrect number of operands: expected ")
+           << cType.getNumElements() << ", but provided "
+           << constituents.size();
 
   for (auto index : llvm::seq<uint32_t>(0, constituents.size())) {
     auto constituent = constituents[index].dyn_cast<FlatSymbolRefAttr>();
 
-    // TODO Handle constiteunts that are SpecConstantCompositeOp.
     auto constituentSpecConstOp =
         dyn_cast<spirv::SpecConstantOp>(SymbolTable::lookupNearestSymbolFrom(
             constOp.getParentOp(), constituent.getValue()));

@@ -716,31 +716,10 @@ spv.module Logical GLSL450 {
 // spv.specConstantComposite (spv.coopmatrix)
 //===----------------------------------------------------------------------===//
 
-// TODO Are there restrictions on the Scope element of specialization constants
-// with type spv.coopmatrix? I think, it makes sense to allow only 'Device' or
-// 'CrossDevice' Scopes.
-
 // -----
 
 spv.module Logical GLSL450 {
   spv.specConstant @sc1 = 1.5 : f32
-  // CHECK: spv.specConstantComposite @scc (@sc1) : !spv.coopmatrix<8x16xf32, Device>
-  spv.specConstantComposite @scc (@sc1) : !spv.coopmatrix<8x16xf32, Device>
-}
-
-// -----
-
-spv.module Logical GLSL450 {
-  spv.specConstant @sc1 = 1.5 : f32
-  spv.specConstant @sc2 = 2.5 : f32
-  // expected-error @+1 {{has incorrect number of operands: expected 1, but provided 2}}
-  spv.specConstantComposite @scc (@sc1, @sc2) : !spv.coopmatrix<8x16xf32, Device>
-}
-
-// -----
-
-spv.module Logical GLSL450 {
-  spv.specConstant @sc1 = 1 : i32
-  // expected-error @+1 {{has incorrect types of operands: expected 'f32', but provided 'i32'}}
+  // expected-error @+1 {{unsupported composite type}}
   spv.specConstantComposite @scc (@sc1) : !spv.coopmatrix<8x16xf32, Device>
 }
