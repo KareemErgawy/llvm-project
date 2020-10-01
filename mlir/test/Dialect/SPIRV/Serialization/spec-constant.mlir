@@ -8,6 +8,7 @@ spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
 
   // CHECK: spv.specConstant @sc_int = -5 : i32
   spv.specConstant @sc_int = -5 : i32
+  spv.specConstantComposite @scc (@sc_int) : !spv.array<1 x i32>
 
   // CHECK: spv.specConstant @sc_float spec_id(5) = 1.000000e+00 : f32
   spv.specConstant @sc_float spec_id(5) = 1. : f32
@@ -16,13 +17,14 @@ spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
   spv.func @use() -> (i32) "None" {
     // We materialize a `spv._reference_of` op at every use of a
     // specialization constant in the deserializer. So two ops here.
-    // CHECK: %[[USE1:.*]] = spv._reference_of @sc_int : i32
-    // CHECK: %[[USE2:.*]] = spv._reference_of @sc_int : i32
-    // CHECK: spv.IAdd %[[USE1]], %[[USE2]]
+    // CHECK: %[[USE1:.*]] = spv._reference_of @scc : !spv.array<1 x i32>
+    // CHECK: %[[USE2:.*]] = spv.CompositeExtract %[[USE1]][0 : i32] : !spv.array<1 x i32>
+    // CHECK: spv.IAdd %[[USE2]], %[[USE2]]
 
-    %0 = spv._reference_of @sc_int : i32
-    %1 = spv.IAdd %0, %0 : i32
-    spv.ReturnValue %1 : i32
+    %0 = spv._reference_of @scc : !spv.array<1 x i32>
+    %1 = spv.CompositeExtract %0[0 : i32] : !spv.array<1 x i32>
+    %2 = spv.IAdd %1, %1 : i32
+    spv.ReturnValue %2 : i32
   }
 }
 
