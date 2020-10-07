@@ -77,6 +77,7 @@ void registerTestPrintNestingPass();
 void registerTestRecursiveTypesPass();
 void registerTestReducer();
 void registerTestSpirvEntryPointABIPass();
+void registerTestSpirvModuleCombinerPass();
 void registerTestSCFUtilsPass();
 void registerTestTraitsPass();
 void registerTestVectorConversions();
@@ -136,6 +137,7 @@ void registerTestPasses() {
   registerTestReducer();
   registerTestGpuParallelLoopMappingPass();
   registerTestSpirvEntryPointABIPass();
+  registerTestSpirvModuleCombinerPass();
   registerTestSCFUtilsPass();
   registerTestTraitsPass();
   registerTestVectorConversions();
