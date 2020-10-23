@@ -33,9 +33,8 @@ void TestModuleCombinerPass::runOnOperation() {
   OpBuilder combinedModuleBuilder(modules[0]);
   spirv::combine(modules, combinedModuleBuilder);
 
-  for (auto module : modules) {
+  for (auto module : modules)
     module.erase();
-  }
 }
 
 namespace mlir {
