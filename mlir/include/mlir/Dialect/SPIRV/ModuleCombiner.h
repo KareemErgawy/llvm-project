@@ -1,5 +1,17 @@
-#ifndef MLIR_DIALECT_SPIRV_MODULE_COMBINER_H_
-#define MLIR_DIALECT_SPIRV_MODULE_COMBINER_H_
+//===- ModuleCombiner.h - MLIR SPIR-V Module Combiner -----------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file declares the entry point to the SPIR-V module combiner library.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef MLIR_DIALECT_SPIRV_MODULECOMBINER_H_
+#define MLIR_DIALECT_SPIRV_MODULECOMBINER_H_
 
 #include "llvm/ADT/SmallVector.h"
 
@@ -75,4 +87,4 @@ void combine(llvm::SmallVector<ModuleOp, 4> modules,
 } // namespace spirv
 } // namespace mlir
 
-#endif // MLIR_DIALECT_SPIRV_MODULE_COMBINER_H_
+#endif // MLIR_DIALECT_SPIRV_MODULECOMBINER_H_
