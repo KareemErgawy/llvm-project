@@ -578,9 +578,9 @@ spv.module Logical GLSL450 {
 
 // CHECK:      module {
 // CHECK-NEXT:   spv.module Logical GLSL450 {
-// CHECK-NEXT:     spv.globalVariable @foo
-
 // CHECK-NEXT:     spv.globalVariable @foo_1
+
+// CHECK-NEXT:     spv.globalVariable @foo
 // CHECK-NEXT: }
 
 module {
@@ -620,9 +620,9 @@ spv.module Logical GLSL450 {
 
 // CHECK:      module {
 // CHECK-NEXT:   spv.module Logical GLSL450 {
-// CHECK-NEXT:     spv.specConstant @foo
+// CHECK-NEXT:     spv.specConstant @foo_1
 
-// CHECK-NEXT:     spv.globalVariable @foo_1
+// CHECK-NEXT:     spv.globalVariable @foo
 // CHECK-NEXT: }
 
 module {
@@ -665,9 +665,9 @@ spv.module Logical GLSL450 {
 // CHECK:      module {
 // CHECK-NEXT:   spv.module Logical GLSL450 {
 // CHECK-NEXT:     spv.specConstant @bar
-// CHECK-NEXT:     spv.specConstantComposite @foo (@bar, @bar)
+// CHECK-NEXT:     spv.specConstantComposite @foo_1 (@bar, @bar)
 
-// CHECK-NEXT:     spv.globalVariable @foo_1
+// CHECK-NEXT:     spv.globalVariable @foo
 // CHECK-NEXT: }
 
 module {

@@ -33,7 +33,7 @@ void TestModuleCombinerPass::runOnOperation() {
   OpBuilder combinedModuleBuilder(modules[0]);
   spirv::combine(modules, combinedModuleBuilder);
 
-  for (auto module : modules)
+  for (spirv::ModuleOp module : modules)
     module.erase();
 }
 

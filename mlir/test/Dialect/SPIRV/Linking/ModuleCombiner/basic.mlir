@@ -30,10 +30,10 @@ spv.module Logical GLSL450 {
 // -----
 
 module {
-// expected-error @+1 {{input modules differ in addressing model and/or memory model}}
 spv.module Physical64 GLSL450 {
 }
 
+// expected-error @+1 {{input modules differ in addressing model and/or memory model}}
 spv.module Logical GLSL450 {
 }
 }
@@ -41,10 +41,10 @@ spv.module Logical GLSL450 {
 // -----
 
 module {
-// expected-error @+1 {{input modules differ in addressing model and/or memory model}}
 spv.module Logical Simple {
 }
 
+// expected-error @+1 {{input modules differ in addressing model and/or memory model}}
 spv.module Logical GLSL450 {
 }
 }
