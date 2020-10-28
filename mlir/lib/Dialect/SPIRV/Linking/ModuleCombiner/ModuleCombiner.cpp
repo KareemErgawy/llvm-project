@@ -165,6 +165,38 @@ spirv::ModuleOp combine(llvm::SmallVectorImpl<spirv::ModuleOp> &modules,
     return WalkResult::advance();
   });
 
+  DenseMap<int64_t, spirv::SpecConstantOp> specIdToSpecConstCompositeMap;
+
+  combinedModule.walk([&](spirv::SpecConstantOp specConstOp) {
+    IntegerAttr specId = specConstOp.getAttrOfType<IntegerAttr>(
+        spirv::SPIRVDialect::getAttributeName(spirv::Decoration::SpecId));
+
+    if (specId) {
+      llvm::errs() << "Found with spec id: " << specId.getInt();
+
+      auto result = specIdToSpecConstCompositeMap.try_emplace(specId.getInt(),
+                                                              specConstOp);
+
+      // No spec constant with the same spec ID was encountered before.
+      if (result.second)
+        return WalkResult::advance();
+
+      // TODO What if 2 spec constants agree on the spec ID but differ in types
+      // or default values?
+
+      StringRef replacementSymName = result.first->second.sym_name();
+      if (failed(SymbolTable::replaceAllSymbolUses(
+              specConstOp, replacementSymName, combinedModule)))
+        return WalkResult(
+            specConstOp.emitError("unable to update all symbol uses for ")
+            << specConstOp.sym_name() << " to " << replacementSymName);
+
+      specConstOp.erase();
+    }
+
+    return WalkResult::advance();
+  });
+
   return combinedModule;
 }
 
