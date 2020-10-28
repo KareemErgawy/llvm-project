@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/SPIRV/ModuleCombiner.h"
 
+#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
@@ -110,6 +111,59 @@ spirv::ModuleOp combine(llvm::SmallVectorImpl<spirv::ModuleOp> &modules,
     for (auto &op : moduleClone.getBlock().without_terminator())
       combinedModuleBuilder.insert(op.clone());
   }
+
+  DenseMap<std::pair<int64_t, int64_t>, spirv::GlobalVariableOp>
+      descriptorToGlobalVarOpMap;
+  DenseMap<StringRef, spirv::GlobalVariableOp> builtInToGlobalVarOpMap;
+
+  combinedModule.walk([&](spirv::GlobalVariableOp globalVarOp) {
+    StringRef replacementSymName;
+
+    IntegerAttr descriptorSet = globalVarOp.getAttrOfType<IntegerAttr>(
+        spirv::SPIRVDialect::getAttributeName(
+            spirv::Decoration::DescriptorSet));
+    IntegerAttr binding = globalVarOp.getAttrOfType<IntegerAttr>(
+        spirv::SPIRVDialect::getAttributeName(spirv::Decoration::Binding));
+
+    if (descriptorSet) {
+      auto result = descriptorToGlobalVarOpMap.try_emplace(
+          {descriptorSet.getInt(), binding.getInt()}, globalVarOp);
+
+      // No global variable with the same (descriptor set, binding) was
+      // encountered before.
+      if (result.second)
+        return WalkResult::advance();
+
+      replacementSymName = result.first->second.sym_name();
+    }
+
+    StringAttr builtIn = globalVarOp.getAttrOfType<StringAttr>(
+        spirv::SPIRVDialect::getAttributeName(spirv::Decoration::BuiltIn));
+
+    if (builtIn) {
+      auto result =
+          builtInToGlobalVarOpMap.try_emplace(builtIn.getValue(), globalVarOp);
+
+      // No global varialbe with the same built-in attribute was encountered
+      // before.
+      if (result.second)
+        return WalkResult::advance();
+
+      replacementSymName = result.first->second.sym_name();
+    }
+
+    if (replacementSymName.empty())
+      return WalkResult::advance();
+
+    if (failed(SymbolTable::replaceAllSymbolUses(
+            globalVarOp, replacementSymName, combinedModule)))
+      return WalkResult(
+          globalVarOp.emitError("unable to update all symbol uses for ")
+          << globalVarOp.sym_name() << " to " << replacementSymName);
+
+    globalVarOp.erase();
+    return WalkResult::advance();
+  });
 
   return combinedModule;
 }
