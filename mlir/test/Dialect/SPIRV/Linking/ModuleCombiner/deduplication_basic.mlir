@@ -97,10 +97,30 @@ spv.module Logical GLSL450 {
     %0 = spv._reference_of @foo : f32
     spv.ReturnValue %0 : f32
   }
+
+  spv.func @foo1(%arg: f32) -> (f32) "None" {
+    spv.ReturnValue %arg : f32
+  }
+
+  spv.func @foo2(%arg: f32) -> (f32) "None" {
+    spv.ReturnValue %arg : f32
+  }
+
+  spv.func @foo3(%arg: i32) -> (i32) "None" {
+    spv.ReturnValue %arg : i32
+  }
+
+  spv.func @foo4(%arg: i32) "None" {
+    spv.Return
+  }
+
+  spv.func @foo5(%arg: i32) -> () "None" {
+    spv.Return
+  }
 }
 
 spv.module Logical GLSL450 {
-  spv.specConstant @bar spec_id(5) = 1. : f32
+  spv.specConstant @bar spec_id(4) = 1. : f32
 
   spv.func @use_bar() -> (f32) "None" {
     %0 = spv._reference_of @bar : f32
