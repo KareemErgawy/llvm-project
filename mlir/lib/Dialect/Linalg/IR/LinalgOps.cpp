@@ -1819,7 +1819,8 @@ fillStructuredOpRegion(OpBuilder &opBuilder, Region &region,
   unsigned actual = body->getNumArguments();
   unsigned expected = NamedStructuredOpType::getNumRegionArgs();
   if (expected != actual) {
-    if (errorHandler) errorHandler(expected, actual);
+    if (errorHandler)
+      errorHandler(expected, actual);
     return;
   }
 
