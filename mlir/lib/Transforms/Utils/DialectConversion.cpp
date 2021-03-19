@@ -495,8 +495,17 @@ Block *ArgConverter::applySignatureConversion(
     // to pack the new values. For 1->1 mappings, if there is no materialization
     // provided, use the argument directly instead.
     auto replArgs = newArgs.slice(inputMap->inputNo, inputMap->size);
-    Value newArg = converter.materializeArgumentConversion(
-        rewriter, origArg.getLoc(), origArg.getType(), replArgs);
+    Value newArg;
+
+    // If this is a 1->1 mapping and the types of new and replacement arguments
+    // match (i.e. it's an idnetity map), then the argument is mapped to its
+    // original type.
+    if (replArgs.size() == 1 && replArgs[0].getType() == origArg.getType())
+      newArg = replArgs[0];
+    else
+      newArg = converter.materializeArgumentConversion(
+          rewriter, origArg.getLoc(), origArg.getType(), replArgs);
+
     if (!newArg) {
       assert(replArgs.size() == 1 &&
              "couldn't materialize the result of 1->N conversion");
@@ -754,8 +763,9 @@ struct ConversionPatternRewriterImpl {
                      TypeConverter::SignatureConversion *entryConversion);
 
   /// Convert the types of non-entry block arguments within the given region.
-  LogicalResult convertNonEntryRegionTypes(Region *region,
-                                           TypeConverter &converter);
+  LogicalResult convertNonEntryRegionTypes(
+      Region *region, TypeConverter &converter,
+      SmallVectorImpl<TypeConverter::SignatureConversion> *blockConversions);
 
   //===--------------------------------------------------------------------===//
   // Rewriter Notification Hooks
@@ -1164,7 +1174,7 @@ FailureOr<Block *> ConversionPatternRewriterImpl::convertRegionTypes(
   if (region->empty())
     return nullptr;
 
-  if (failed(convertNonEntryRegionTypes(region, converter)))
+  if (failed(convertNonEntryRegionTypes(region, converter, nullptr)))
     return failure();
 
   FailureOr<Block *> newEntry =
@@ -1173,14 +1183,18 @@ FailureOr<Block *> ConversionPatternRewriterImpl::convertRegionTypes(
 }
 
 LogicalResult ConversionPatternRewriterImpl::convertNonEntryRegionTypes(
-    Region *region, TypeConverter &converter) {
+    Region *region, TypeConverter &converter,
+    SmallVectorImpl<TypeConverter::SignatureConversion> *blockConversions) {
   argConverter.setConverter(region, &converter);
   if (region->empty())
     return success();
 
   // Convert the arguments of each block within the region.
+  int blockIdx = 0;
   for (Block &block : llvm::make_early_inc_range(llvm::drop_begin(*region, 1)))
-    if (failed(convertBlockSignature(&block, converter)))
+    if (failed(convertBlockSignature(
+            &block, converter,
+            blockConversions ? &(*blockConversions)[blockIdx++] : nullptr)))
       return failure();
   return success();
 }
@@ -1351,8 +1365,9 @@ FailureOr<Block *> ConversionPatternRewriter::convertRegionTypes(
 }
 
 LogicalResult ConversionPatternRewriter::convertNonEntryRegionTypes(
-    Region *region, TypeConverter &converter) {
-  return impl->convertNonEntryRegionTypes(region, converter);
+    Region *region, TypeConverter &converter,
+    SmallVectorImpl<TypeConverter::SignatureConversion> *blockConversions) {
+  return impl->convertNonEntryRegionTypes(region, converter, blockConversions);
 }
 
 void ConversionPatternRewriter::replaceUsesOfBlockArgument(BlockArgument from,

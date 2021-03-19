@@ -52,27 +52,44 @@ public:
   using OpInterfaceConversionPattern<
       BranchOpInterface>::OpInterfaceConversionPattern;
 
+  BranchOpInterfaceTypeConversion(TypeConverter &typeConverter,
+                                  MLIRContext *ctx,
+                                  const DenseMap<Operation *, DenseSet<int>>
+                                      *branchOpsOperandConversionFilter)
+      : OpInterfaceConversionPattern(typeConverter, ctx, /*benefit=*/1),
+        branchOpsOperandConversionFilter(branchOpsOperandConversionFilter) {}
+
   LogicalResult
   matchAndRewrite(BranchOpInterface op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
+    DenseSet<int> opOperandFilter;
+
+    if (branchOpsOperandConversionFilter)
+      opOperandFilter = branchOpsOperandConversionFilter->lookup(op);
+
     // For a branch operation, only some operands go to the target blocks, so
     // only rewrite those.
     SmallVector<Value, 4> newOperands(op->operand_begin(), op->operand_end());
     for (int succIdx = 0, succEnd = op->getBlock()->getNumSuccessors();
          succIdx < succEnd; ++succIdx) {
       auto successorOperands = op.getSuccessorOperands(succIdx);
-      if (!successorOperands)
+      if (!successorOperands || successorOperands->empty())
         continue;
+
       for (int idx = successorOperands->getBeginOperandIndex(),
                eidx = idx + successorOperands->size();
            idx < eidx; ++idx) {
-        newOperands[idx] = operands[idx];
+        if (!branchOpsOperandConversionFilter || opOperandFilter.count(idx))
+          newOperands[idx] = operands[idx];
       }
     }
     rewriter.updateRootInPlace(
         op, [newOperands, op]() { op->setOperands(newOperands); });
     return success();
   }
+
+private:
+  const DenseMap<Operation *, DenseSet<int>> *branchOpsOperandConversionFilter;
 };
 } // end anonymous namespace
 
@@ -98,9 +115,11 @@ public:
 } // end anonymous namespace
 
 void mlir::populateBranchOpInterfaceTypeConversionPattern(
-    RewritePatternSet &patterns, TypeConverter &typeConverter) {
-  patterns.add<BranchOpInterfaceTypeConversion>(typeConverter,
-                                                patterns.getContext());
+    RewritePatternSet &patterns, TypeConverter &typeConverter,
+    const DenseMap<Operation *, DenseSet<int>>
+        *branchOpsOperandConversionFilter) {
+  patterns.insert<BranchOpInterfaceTypeConversion>(
+      typeConverter, patterns.getContext(), branchOpsOperandConversionFilter);
 }
 
 bool mlir::isLegalForBranchOpInterfaceTypeConversionPattern(

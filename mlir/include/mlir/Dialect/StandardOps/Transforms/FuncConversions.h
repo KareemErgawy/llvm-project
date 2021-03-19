@@ -13,6 +13,8 @@
 #ifndef MLIR_DIALECT_STANDARDOPS_TRANSFORMS_FUNCCONVERSIONS_H_
 #define MLIR_DIALECT_STANDARDOPS_TRANSFORMS_FUNCCONVERSIONS_H_
 
+#include "mlir/Support/LLVM.h"
+
 namespace mlir {
 
 // Forward declarations.
@@ -32,8 +34,15 @@ void populateCallOpTypeConversionPattern(RewritePatternSet &patterns,
 /// operands that have been legalized by the conversion framework. This can only
 /// be done if the branch operation implements the BranchOpInterface. Only
 /// needed for partial conversions.
-void populateBranchOpInterfaceTypeConversionPattern(RewritePatternSet &patterns,
-                                                    TypeConverter &converter);
+///
+/// If for some branch ops, we need to convert/legalize only a sub-set of the
+/// op's operands, such filtering behavior can be specified in
+/// branchOpsOperandConversionFilter where an op is mapped to the subset of its
+/// operands that need to be converted.
+void populateBranchOpInterfaceTypeConversionPattern(
+    RewritePatternSet &patterns, TypeConverter &converter,
+    const DenseMap<Operation *, DenseSet<int>>
+        *branchOpsOperandConversionFilter = nullptr);
 
 /// Return true if op is a BranchOpInterface op whose operands are all legal
 /// according to converter.
