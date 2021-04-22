@@ -309,6 +309,8 @@ def SPV_LoopOp : SPV_Op<"mlir.loop", [InFunctionScope]> {
   let hasOpcode = 0;
 
   let autogenSerialization = 0;
+
+  let hasCanonicalizer = 1;
 }
 
 // -----
@@ -470,6 +472,71 @@ def SPV_SelectionOp : SPV_Op<"mlir.selection", [InFunctionScope]> {
   let autogenSerialization = 0;
 
   let hasCanonicalizer = 1;
+}
+
+
+def SPV_StructuredBranchOp : SPV_Op<"mlir.structured_branch", [
+    DeclareOpInterfaceMethods<BranchOpInterface>, InFunctionScope, NoSideEffect,
+    Terminator]> {
+  let summary = "Declares a structured control-flow construct.";
+
+  let description = [{
+    An op that bridges the gap between the SPIR-V binary blob world and MLIR's
+    high-level op world. In particular, this op provides a more faithful
+    representation of how structured control-flow is modelled by the SPIR-V spec
+    (see section: 2.11 in the spec). In essense, this op corresponds to 2 ops
+    in a SPIR-V binary. It can be either:
+
+    - A combination of OpLoopMerge + OpBranch
+    - A combination of OpSelectionMerge + OpBranch (TODO: possibly in another
+                                                    opeartion)
+
+    #### Example:
+
+    ```mlir
+    spv.mlir.structured_branch "Loop" ^branchTarget [^merge, ^continue]
+    ```
+
+    The above op marks the start of a loop contruct as defined the SPIR-V spec.
+    It corresponds to the following SPIR-V binary ops:
+
+    ```spir-v
+    OpLoopMerge %<merge_block_id> %<continue_target_id> None
+    OpBranch %<branch_target_block_id>
+    ```
+
+    For loops, the block terminated by this op is the "loop header" block.
+  }];
+
+  let arguments = (ins
+    SPV_ControlFlowAttr:$cf_type,
+    Variadic<SPV_Type>:$branchTargetOperands
+  );
+
+  let results = (outs);
+
+  // branchTarget: is the target block of a loop header's branch. It can be the 
+  //               same block as the entry block of the loop's continue construct.
+  //
+  // merge: is the block where contrl flow converges.
+  //
+  // continueTarget: is the entry block of the loop's continue construct.
+  let successors = (successor AnySuccessor:$branchTarget,
+                              AnySuccessor:$merge,
+                              AnySuccessor:$continueTarget);
+
+  // TODO: verify the loop construct started by this op follows the structured
+  //       control flow rules specified by the spec.
+  let verifier = [{ return success(); }];
+
+  let hasOpcode = 0;
+
+  let autogenSerialization = 0;
+
+  let assemblyFormat = [{
+    $cf_type $branchTarget (`(` $branchTargetOperands^ `:` type($branchTargetOperands) `)`)?
+    `[`$merge `,` $continueTarget`]` attr-dict
+  }];
 }
 
 #endif // MLIR_DIALECT_SPIRV_IR_CONTROLFLOW_OPS

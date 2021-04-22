@@ -3511,4 +3511,11 @@ class SPV_ExtInstOp<string mnemonic, string setPrefix, string setName,
   string extendedInstSetName = setName;
 }
 
+def SPV_CF_loop   : StrEnumAttrCase<"Loop">;
+// TODO Add support for "Selection"
+
+def SPV_ControlFlowAttr : SPV_StrEnumAttr<
+    "ControlFlow", "SPIR-V structured control-flow contruct types",
+    [SPV_CF_loop]>;
+
 #endif // MLIR_DIALECT_SPIRV_IR_BASE

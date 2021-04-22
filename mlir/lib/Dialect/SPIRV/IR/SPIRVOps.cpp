@@ -3716,6 +3716,20 @@ static LogicalResult verify(spirv::ImageQuerySizeOp imageQuerySizeOp) {
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// spv.mlir.structured_branch
+//===----------------------------------------------------------------------===//
+
+Optional<MutableOperandRange>
+mlir::spirv::StructuredBranchOp::getMutableSuccessorOperands(unsigned index) {
+  assert(index < 3 && "invalid successor index");
+
+  if (index == 0)
+    return branchTargetOperandsMutable();
+
+  return Optional<MutableOperandRange>();
+}
+
 namespace mlir {
 namespace spirv {
 

@@ -10,13 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 
 #include "mlir/Dialect/CommonFolders.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
+#include "mlir/IR/BlockSupport.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallVector.h"
 
 using namespace mlir;
 
@@ -293,6 +299,7 @@ struct ConvertSelectionOpToSelect
 
   LogicalResult matchAndRewrite(spirv::SelectionOp selectionOp,
                                 PatternRewriter &rewriter) const override {
+    llvm::errs() << "^^^^ Start SelectionOp canonicalization.\n";
     auto *op = selectionOp.getOperation();
     auto &body = op->getRegion(0);
     // Verifier allows an empty region for `spv.mlir.selection`.
@@ -419,4 +426,232 @@ LogicalResult ConvertSelectionOpToSelect::canCanonicalizeSelection(
 void spirv::SelectionOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                      MLIRContext *context) {
   results.add<ConvertSelectionOpToSelect>(context);
+}
+
+namespace {
+struct ConvertLoopOpToStructuredLoop : public OpRewritePattern<spirv::LoopOp> {
+  using OpRewritePattern<spirv::LoopOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(spirv::LoopOp loopOp,
+                                PatternRewriter &rewriter) const override {
+    Block *loopOpPredBlock = loopOp->getBlock();
+    // We want to branch into the new structured loop. For that, split the
+    // loop's block into 2 so that we can insert a BranchOp at the end of the
+    // new predecessor block.
+    Block *loopOpNewBlock = loopOpPredBlock->splitBlock(loopOp);
+    // We want to branch out of the new structured loop. For that, split the
+    // loop's block further into 2 so that we can branch from the structured
+    // loop's merge block to the new successsor block.
+    Block *loopOpSuccBlock =
+        loopOpNewBlock->splitBlock(std::next(Block::iterator(loopOp)));
+
+    // Collect loop components.
+    //
+    // entryBlock is the block that will be updated to contain the
+    // spv.mlir.structured_branch.
+    Block *entryBlock = loopOp.getEntryBlock();
+    Block *headerBlock = loopOp.getHeaderBlock();
+    Block *continueBlock = loopOp.getContinueBlock();
+    Block *mergeBlock = loopOp.getMergeBlock();
+    spirv::BranchOp entryToHeaderBranch =
+        dyn_cast<spirv::BranchOp>(entryBlock->getTerminator());
+    assert(entryToHeaderBranch &&
+           "expected entry-to-header branch to be a BranchOp");
+
+    llvm::errs() << ">>>> entry: \n";
+    entryBlock->dump();
+
+    llvm::errs() << ">>>> header: \n";
+    headerBlock->dump();
+
+    llvm::errs() << ">>>> continue: \n";
+    continueBlock->dump();
+
+    llvm::errs() << ">>>> merge: \n";
+    mergeBlock->dump();
+
+    // TODO Find the back edge block properly (DFS from the continue block). For
+    // now, we assume that the loop's continue construct consists only of a
+    // single block.
+    Block *backEdgeBlock = loopOp.getContinueBlock();
+
+    // TODO Construct the range of blocks that starts at the loop entry and ends
+    // at the loop header (inclusive) properly. For now, we assume this range
+    // consists only of 2 blocks: the entry block and the header block.
+    SpilledValuesMap spilledValues = collectValuesSpilledToContinueConstruct(
+        {entryBlock, headerBlock}, continueBlock);
+
+    Block *newContinueBlock = updateHeaderToContinueBranch(
+        loopOp.getLoc(), headerBlock, continueBlock, spilledValues, rewriter);
+
+    rewriter.inlineRegionBefore(loopOp.getRegion(), loopOpNewBlock);
+
+    // Re-wire the back-edge block to entryBlock since entryBlock is the block
+    // that will contain the spv.mlir.structure_br after the re-write.
+    rewriter.setInsertionPointToEnd(backEdgeBlock);
+    rewriter.eraseOp(backEdgeBlock->getTerminator());
+    rewriter.create<spirv::BranchOp>(loopOp.getLoc(), entryBlock);
+
+    // Branch from outside the loop to entryBlock.
+    rewriter.setInsertionPointToEnd(loopOpPredBlock);
+    rewriter.create<spirv::BranchOp>(loopOp.getLoc(), entryBlock);
+
+    // Branch from entryBlock to headerBlock.
+    rewriter.setInsertionPointToEnd(entryBlock);
+    StringAttr loopCFAttr =
+        StringAttr::get(loopOp.getContext(),
+                        spirv::stringifyControlFlow(spirv::ControlFlow::Loop));
+    rewriter.create<spirv::StructuredBranchOp>(
+        loopOp.getLoc(), loopCFAttr, entryToHeaderBranch.getOperands(),
+        headerBlock, mergeBlock, newContinueBlock);
+    rewriter.eraseOp(entryToHeaderBranch);
+
+    // Branch from mergeBlock to after the loop.
+    rewriter.setInsertionPointToEnd(mergeBlock);
+    rewriter.eraseOp(mergeBlock->getTerminator());
+    rewriter.create<spirv::BranchOp>(loopOp.getLoc(), loopOpSuccBlock);
+
+    // The loopOp's region has been inlined and re-wired using
+    // spv.mlir.structured_branch, no need for the loopOp anymore.
+    rewriter.eraseOp(loopOp);
+
+    return success();
+  }
+
+private:
+  using SpilledValuesMap = llvm::DenseMap<Value, llvm::DenseSet<OpOperand *>>;
+
+  /// Discovers all the values defined by any block in headerToEntryRange which
+  /// spill into (i.e. are used by) the loop's continue construct. See:
+  /// createNewContinueBlock(...) for why this is needed.
+  ///
+  /// Returns a map from spilled values to their uses in the loop's continue
+  /// construct.
+  SpilledValuesMap
+  collectValuesSpilledToContinueConstruct(mlir::BlockRange headerToEntryRange,
+                                          Block *continueBlock) const {
+    llvm::DenseSet<Value> headerToEntryDefinedValues;
+
+    for (Block *block : headerToEntryRange) {
+      for (BlockArgument &blockArg : block->getArguments()) {
+        headerToEntryDefinedValues.insert(blockArg);
+      }
+
+      for (Operation &op : block->getOperations()) {
+        for (OpResult opRes : op.getResults()) {
+          headerToEntryDefinedValues.insert(opRes);
+        }
+      }
+    }
+
+    SpilledValuesMap spilledValues;
+
+    // TODO Instead of this, walk the use list of headerToEntryDefinedValues
+    // and check for uses that lie in the continue construct.
+    for (Operation &op : continueBlock->getOperations()) {
+      for (OpOperand &opOperand : op.getOpOperands()) {
+        if (headerToEntryDefinedValues.count(opOperand.get())) {
+          spilledValues[opOperand.get()].insert(&opOperand);
+        }
+      }
+    }
+
+    return spilledValues;
+  }
+
+  /// Creates a new continue block that will explicitly take as arguments the
+  /// set of spilled values discovered by
+  /// collectValuesSpilledToContinueConstruct(...).
+  Block *createNewContinueBlock(Location loc, Block *loopEntry,
+                                Block *continueBlock,
+                                SpilledValuesMap spilledValues,
+                                PatternRewriter &rewriter) const {
+    SmallVector<Type> spilledValueTypes;
+
+    for (auto spilledValue : spilledValues) {
+      spilledValueTypes.push_back(spilledValue.first.getType());
+    }
+
+    Block *newContinueBlock =
+        rewriter.createBlock(continueBlock, spilledValueTypes);
+    rewriter.setInsertionPointToEnd(newContinueBlock);
+    rewriter.create<spirv::BranchOp>(loc, continueBlock);
+
+    ArrayRef<BlockArgument> newContinueBlockArgs =
+        newContinueBlock->getArguments();
+
+    unsigned spilledValueIndex = 0;
+
+    for (auto spilledValue : spilledValues) {
+      spilledValue.first.replaceUsesWithIf(
+          newContinueBlockArgs[spilledValueIndex], [&](OpOperand &userOperand) {
+            return spilledValue.second.count(&userOperand);
+          });
+
+      ++spilledValueIndex;
+    }
+
+    return newContinueBlock;
+  }
+
+  /// Rewrite the branch from the loop's header to its continue construct. The
+  /// new branch points to a new block that explicitly takes as argument the
+  /// values spilled into the continue construct from the entry-to-header range
+  /// of blocks.
+  //
+  // TODO For now, we assume that there are no intervening blocks between the
+  // loop's header and continue blocks.
+  Block *updateHeaderToContinueBranch(Location loc, Block *loopEntry,
+                                      Block *continueBlock,
+                                      SpilledValuesMap spilledValues,
+                                      PatternRewriter &rewriter) const {
+
+    Block *newContinueBlock = createNewContinueBlock(
+        loc, loopEntry, continueBlock, spilledValues, rewriter);
+
+    Operation *entryTerminator = loopEntry->getTerminator();
+
+    if (auto branchCondOp =
+            dyn_cast<spirv::BranchConditionalOp>(entryTerminator)) {
+      SmallVector<Value, 4> trueArguments = branchCondOp.trueTargetOperands();
+      SmallVector<Value, 4> falseArguments = branchCondOp.falseTargetOperands();
+      SmallVectorImpl<Value> *affectedArgumentsList = nullptr;
+
+      Block *trueTarget = branchCondOp.trueTarget();
+      Block *falseTarget = branchCondOp.falseTarget();
+
+      if (continueBlock == branchCondOp.trueTarget()) {
+        affectedArgumentsList = &trueArguments;
+        trueTarget = newContinueBlock;
+      } else if (continueBlock == branchCondOp.falseTarget()) {
+        affectedArgumentsList = &falseArguments;
+        falseTarget = newContinueBlock;
+      } else {
+        branchCondOp.emitError(
+            "expected continue block to be a successor of entry block");
+      }
+
+      for (auto spilledValue : spilledValues) {
+        affectedArgumentsList->push_back(spilledValue.first);
+      }
+
+      rewriter.setInsertionPointToEnd(loopEntry);
+      rewriter.eraseOp(entryTerminator);
+      rewriter.create<spirv::BranchConditionalOp>(
+          branchCondOp.getLoc(), branchCondOp.condition(), trueArguments,
+          falseArguments, branchCondOp.branch_weightsAttr(), trueTarget,
+          falseTarget);
+    } else {
+      entryTerminator->emitError(
+          "unimplemented terminator for loop conversion");
+    }
+
+    return newContinueBlock;
+  }
+};
+} // end anonymous namespace
+
+void spirv::LoopOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                MLIRContext *context) {
+  results.add<ConvertLoopOpToStructuredLoop>(context);
 }

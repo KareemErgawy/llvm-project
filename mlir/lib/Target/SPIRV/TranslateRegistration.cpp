@@ -26,6 +26,7 @@
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include <fstream>
 
 using namespace mlir;
 
@@ -135,6 +136,10 @@ static LogicalResult roundTripModule(ModuleOp srcModule, bool emitDebugInfo,
 
   if (failed(spirv::serialize(*spirvModules.begin(), binary, emitDebugInfo)))
     return failure();
+
+  std::ofstream out("/tmp/test.spv", std::ios_base::out | std::ios_base::binary);
+  out.write(reinterpret_cast<char*>(binary.data()), binary.size() * 4);
+  out.close();
 
   MLIRContext deserializationContext(context->getDialectRegistry());
   // TODO: we should only load the required dialects instead of all dialects.

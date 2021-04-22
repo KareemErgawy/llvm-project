@@ -426,6 +426,7 @@ LogicalResult Serializer::processLoopOp(spirv::LoopOp loopOp) {
   // properly. We don't need to assign for the entry block, which is just for
   // satisfying MLIR region's structural requirement.
   auto &body = loopOp.body();
+  // TODO Try to find a test case that breaks if this loop is commented.
   for (Block &block :
        llvm::make_range(std::next(body.begin(), 1), body.end())) {
     getOrCreateBlockID(&block);
@@ -503,6 +504,26 @@ LogicalResult Serializer::processBranchOp(spirv::BranchOp branchOp) {
   (void)emitDebugLine(functionBody, branchOp.getLoc());
   return encodeInstructionInto(functionBody, spirv::Opcode::OpBranch,
                                {getOrCreateBlockID(branchOp.getTarget())});
+}
+
+LogicalResult Serializer::processStructuredBranchOp(
+    spirv::StructuredBranchOp structuredBranchOp) {
+  (void)emitDebugLine(functionBody, structuredBranchOp.getLoc());
+
+  Block *branchTragetBlock = structuredBranchOp.branchTarget();
+  Block *mergeBlock = structuredBranchOp.merge();
+  Block *continueTarget = structuredBranchOp.continueTarget();
+
+  uint32_t branchTargetID = getOrCreateBlockID(branchTragetBlock);
+  uint32_t mergeID = getOrCreateBlockID(mergeBlock);
+  uint32_t continueID = getOrCreateBlockID(continueTarget);
+
+  (void)encodeInstructionInto(functionBody, spirv::Opcode::OpLoopMerge,
+                              {mergeID, continueID, 0});
+
+  (void)encodeInstructionInto(functionBody, spirv::Opcode::OpBranch, {branchTargetID});
+
+  return success();
 }
 
 LogicalResult Serializer::processAddressOfOp(spirv::AddressOfOp addressOfOp) {

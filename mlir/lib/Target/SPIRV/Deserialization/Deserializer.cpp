@@ -1903,7 +1903,9 @@ LogicalResult spirv::Deserializer::wireUpBlockArgument() {
 
       branchCondOp.erase();
     } else {
-      return emitError(unknownLoc, "unimplemented terminator for Phi creation");
+      return emitError(
+          unknownLoc,
+          "[deserializer] unimplemented terminator for Phi creation");
     }
 
     LLVM_DEBUG(llvm::dbgs() << "[phi] after creating block argument:\n");

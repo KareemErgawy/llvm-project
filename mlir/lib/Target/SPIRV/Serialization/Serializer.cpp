@@ -14,6 +14,7 @@
 
 #include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
@@ -986,8 +987,11 @@ LogicalResult Serializer::emitPhiForBlockArguments(Block *block) {
       assert(blockOperands && !blockOperands->empty() &&
              "expected non-empty block operand range");
       predecessors.emplace_back(predecessor, *blockOperands);
+    } else if (auto structuredBranchOp =
+                   dyn_cast<spirv::StructuredBranchOp>(terminator)) {
+      predecessors.emplace_back(predecessor, structuredBranchOp.getOperands());
     } else {
-      return terminator->emitError("unimplemented terminator for Phi creation");
+      return terminator->emitError("[serializer] unimplemented terminator for Phi creation");
     }
   }
 
@@ -1102,6 +1106,9 @@ LogicalResult Serializer::processOperation(Operation *opInst) {
       })
       .Case([&](spirv::UndefOp op) { return processUndefOp(op); })
       .Case([&](spirv::VariableOp op) { return processVariableOp(op); })
+      .Case([&](spirv::StructuredBranchOp op) {
+        return processStructuredBranchOp(op);
+      })
 
       // Then handle all the ops that directly mirror SPIR-V instructions with
       // auto-generated methods.

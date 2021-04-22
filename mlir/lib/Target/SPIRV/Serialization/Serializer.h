@@ -132,6 +132,8 @@ private:
   /// Process a SPIR-V GlobalVariableOp
   LogicalResult processGlobalVariableOp(spirv::GlobalVariableOp varOp);
 
+  LogicalResult processStructuredBranchOp(spirv::StructuredBranchOp op);
+
   /// Process attributes that translate to decorations on the result <id>
   LogicalResult processDecoration(Location loc, uint32_t resultID,
                                   NamedAttribute attr);
