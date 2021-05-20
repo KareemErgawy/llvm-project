@@ -49,9 +49,11 @@ static inline bool isFnEntryBlock(Block *block) {
 //===----------------------------------------------------------------------===//
 
 spirv::Deserializer::Deserializer(ArrayRef<uint32_t> binary,
-                                  MLIRContext *context)
+                                  MLIRContext *context,
+                                  DeserializerConfig config)
     : binary(binary), context(context), unknownLoc(UnknownLoc::get(context)),
-      module(createModuleOp()), opBuilder(module->body()) {}
+      module(createModuleOp()), opBuilder(module->body()),
+      config(config) {}
 
 LogicalResult spirv::Deserializer::deserialize() {
   LLVM_DEBUG(llvm::dbgs() << "+++ starting deserialization +++\n");
@@ -470,7 +472,19 @@ spirv::Deserializer::processFunctionEnd(ArrayRef<uint32_t> operands) {
 
   // Wire up block arguments from OpPhi instructions.
   // Put all structured control flow in spv.mlir.selection/spv.mlir.loop ops.
-  if (failed(wireUpBlockArgument()) || failed(structurizeControlFlow())) {
+  if (failed(wireUpBlockArgument())) {
+    return failure();
+  }
+
+  if (config == DeserializerConfig::DESERIALIZE_TO_STRUCTURED_OPS &&
+      failed(structurizeControlFlow())) {
+    return failure();
+  }
+
+  if (config ==
+          DeserializerConfig::
+              DESERIALIZE_TO_STRUCTURED_CONTROL_FLOW_THEN_TO_STRUCTURED_OPS &&
+      failed(structurizeControlFlow2())) {
     return failure();
   }
 
@@ -1432,10 +1446,31 @@ LogicalResult spirv::Deserializer::processBranch(ArrayRef<uint32_t> operands) {
 
   auto *target = getOrCreateBlock(operands[0]);
   auto loc = createFileLineColLoc(opBuilder);
-  // The preceding instruction for the OpBranch instruction could be an
-  // OpLoopMerge or an OpSelectionMerge instruction, in this case they will have
-  // the same OpLine information.
-  opBuilder.create<spirv::BranchOp>(loc, target);
+
+  if (config == DeserializerConfig::DESERIALIZE_TO_STRUCTURED_CONTROL_FLOW ||
+      config ==
+          DeserializerConfig::
+              DESERIALIZE_TO_STRUCTURED_CONTROL_FLOW_THEN_TO_STRUCTURED_OPS) {
+    auto it = blockRawMergeInfo.find(curBlock);
+
+    if (it != std::end(blockRawMergeInfo)) {
+      StringAttr loopCFAttr = StringAttr::get(
+          opBuilder.getContext(),
+          spirv::stringifyControlFlow(spirv::ControlFlow::Loop));
+      Block *continueBlock = getOrCreateBlock(it->second.continueBlockID);
+      Block *mergeBlock = getOrCreateBlock(it->second.mergeBlockID);
+
+      cfLoops.push_back(opBuilder.create<spirv::StructuredBranchOp>(
+          loc, loopCFAttr, ValueRange{}, target, mergeBlock, continueBlock));
+    } else {
+      opBuilder.create<spirv::BranchOp>(loc, target);
+    }
+  } else {
+    // The preceding instruction for the OpBranch instruction could be an
+    // OpLoopMerge or an OpSelectionMerge instruction, in this case they will
+    // have the same OpLine information.
+    opBuilder.create<spirv::BranchOp>(loc, target);
+  }
 
   (void)clearDebugLine();
   return success();
@@ -1534,17 +1569,30 @@ spirv::Deserializer::processLoopMerge(ArrayRef<uint32_t> operands) {
                                  "continue target and loop control");
   }
 
-  auto *mergeBlock = getOrCreateBlock(operands[0]);
-  auto *continueBlock = getOrCreateBlock(operands[1]);
   auto loc = createFileLineColLoc(opBuilder);
-  uint32_t loopControl = operands[2];
 
-  if (!blockMergeInfo
-           .try_emplace(curBlock, loc, loopControl, mergeBlock, continueBlock)
-           .second) {
-    return emitError(
-        unknownLoc,
-        "a block cannot have more than one OpLoopMerge instruction");
+  if (config == DeserializerConfig::DESERIALIZE_TO_STRUCTURED_CONTROL_FLOW ||
+      config ==
+          DeserializerConfig::
+              DESERIALIZE_TO_STRUCTURED_CONTROL_FLOW_THEN_TO_STRUCTURED_OPS) {
+    if (!blockRawMergeInfo
+             .try_emplace(curBlock, loc, operands[0], operands[1], operands[2])
+             .second) {
+      return emitError(
+          unknownLoc,
+          "a block cannot have more than one OpLoopMerge instruction");
+    }
+  } else {
+    auto *mergeBlock = getOrCreateBlock(operands[0]);
+    auto *continueBlock = getOrCreateBlock(operands[1]);
+    uint32_t loopControl = operands[2];
+    if (!blockMergeInfo
+             .try_emplace(curBlock, loc, loopControl, mergeBlock, continueBlock)
+             .second) {
+      return emitError(
+          unknownLoc,
+          "a block cannot have more than one OpLoopMerge instruction");
+    }
   }
 
   return success();
@@ -1951,6 +1999,22 @@ LogicalResult spirv::Deserializer::structurizeControlFlow() {
   }
 
   LLVM_DEBUG(llvm::dbgs() << "[cf] completed structurizing control flow\n");
+  return success();
+}
+
+LogicalResult spirv::Deserializer::structurizeControlFlow2() {
+  // TODO For now, only simple non-nested loops are supported.
+  BlockMergeInfoMap empty;
+  for (StructuredBranchOp loop : cfLoops) {
+    if (failed(ControlFlowStructurizer::structurize(
+            loop.getLoc(), /*TODO loop control*/ 0, empty, loop->getBlock(),
+            loop.merge(), loop.continueTarget()))) {
+      return failure();
+    }
+  }
+
+  cfLoops.clear();
+
   return success();
 }
 

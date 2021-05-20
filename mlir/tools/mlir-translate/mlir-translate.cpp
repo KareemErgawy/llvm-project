@@ -21,11 +21,15 @@ namespace mlir {
 // Defined in the test directory, no public header.
 void registerTestRoundtripSPIRV();
 void registerTestRoundtripDebugSPIRV();
+void registerTestRoundtripDeserializeToSCF();
+void registerTestRoundtripDeserializeToSCFToSO();
 } // namespace mlir
 
 static void registerTestTranslations() {
   registerTestRoundtripSPIRV();
   registerTestRoundtripDebugSPIRV();
+  registerTestRoundtripDeserializeToSCF();
+  registerTestRoundtripDeserializeToSCFToSO();
 }
 
 int main(int argc, char **argv) {

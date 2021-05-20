@@ -17,6 +17,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/Target/SPIRV/Utils.h"
 #include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
 #include "gmock/gmock.h"
 
@@ -45,7 +46,9 @@ protected:
 
   /// Performs deserialization and returns the constructed spv.module op.
   OwningOpRef<spirv::ModuleOp> deserialize() {
-    return spirv::deserialize(binary, &context);
+    return spirv::deserialize(
+        binary, &context,
+        spirv::DeserializerConfig::DESERIALIZE_TO_STRUCTURED_CONTROL_FLOW);
   }
 
   /// Checks there is a diagnostic generated with the given `errorMessage`.

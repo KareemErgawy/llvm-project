@@ -19,6 +19,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "mlir/Target/SPIRV/Utils.h"
+
 #include <cstdint>
 
 //===----------------------------------------------------------------------===//
@@ -60,6 +62,18 @@ struct BlockMergeInfo {
       : mergeBlock(m), continueBlock(c), loc(location), control(control) {}
 };
 
+struct BlockRawMergeInfo {
+    Location loc;
+    uint32_t mergeBlockID;
+    uint32_t continueBlockID;
+    uint32_t loopControl;
+
+    BlockRawMergeInfo(Location loc, uint32_t mergeBlockID,
+                      uint32_t continueBlockID, uint32_t loopControl)
+        : loc(loc), mergeBlockID(mergeBlockID),
+          continueBlockID(continueBlockID), loopControl(loopControl) {}
+};
+
 /// A struct for containing OpLine instruction information.
 struct DebugLine {
   uint32_t fileID;
@@ -72,6 +86,7 @@ struct DebugLine {
 
 /// Map from a selection/loop's header block to its merge (and continue) target.
 using BlockMergeInfoMap = DenseMap<Block *, BlockMergeInfo>;
+using BlockRawMergeInfoMap = DenseMap<Block *, BlockRawMergeInfo>;
 
 /// A "deferred struct type" is a struct type with one or more member types not
 /// known when the Deserializer first encounters the struct. This happens, for
@@ -135,7 +150,8 @@ class Deserializer {
 public:
   /// Creates a deserializer for the given SPIR-V `binary` module.
   /// The SPIR-V ModuleOp will be created into `context.
-  explicit Deserializer(ArrayRef<uint32_t> binary, MLIRContext *context);
+  explicit Deserializer(ArrayRef<uint32_t> binary, MLIRContext *context,
+                        DeserializerConfig config);
 
   /// Deserializes the remembered SPIR-V binary module.
   LogicalResult deserialize();
@@ -415,6 +431,7 @@ private:
   /// spv.mlir.selection/spv.mlir.loop op. This method iterates until all blocks
   /// declared as selection/loop headers are handled.
   LogicalResult structurizeControlFlow();
+  LogicalResult structurizeControlFlow2();
 
   //===--------------------------------------------------------------------===//
   // Instruction
@@ -559,6 +576,8 @@ private:
 
   // Header block to its merge (and continue) target mapping.
   BlockMergeInfoMap blockMergeInfo;
+  BlockRawMergeInfoMap blockRawMergeInfo;
+  SmallVector<StructuredBranchOp> cfLoops;
 
   // For each pair of {predecessor, target} blocks, maps the pair of blocks to
   // the list of phi arguments passed from predecessor to target.
@@ -613,6 +632,8 @@ private:
 
   /// A list of all structs which have unresolved member types.
   SmallVector<DeferredStructTypeInfo, 0> deferredStructTypesInfos;
+
+  DeserializerConfig config;
 };
 
 } // namespace spirv

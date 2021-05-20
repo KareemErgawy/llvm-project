@@ -15,6 +15,7 @@
 
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/Support/LLVM.h"
+#include "Utils.h"
 
 namespace mlir {
 class MLIRContext;
@@ -26,8 +27,9 @@ class ModuleOp;
 /// in the given `context`. Returns the ModuleOp on success; otherwise, reports
 /// errors to the error handler registered with `context` and returns a null
 /// module.
-OwningOpRef<spirv::ModuleOp> deserialize(ArrayRef<uint32_t> binary,
-                                         MLIRContext *context);
+OwningOpRef<spirv::ModuleOp>
+deserialize(ArrayRef<uint32_t> binary, MLIRContext *context,
+            DeserializerConfig config);
 
 } // end namespace spirv
 } // end namespace mlir

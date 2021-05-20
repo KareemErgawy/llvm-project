@@ -20,6 +20,7 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Target/SPIRV/Deserialization.h"
 #include "mlir/Target/SPIRV/Serialization.h"
+#include "mlir/Target/SPIRV/Utils.h"
 #include "mlir/Translation.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -52,8 +53,9 @@ static OwningModuleRef deserializeModule(const llvm::MemoryBuffer *input,
   auto binary = llvm::makeArrayRef(reinterpret_cast<const uint32_t *>(start),
                                    size / sizeof(uint32_t));
 
-  OwningOpRef<spirv::ModuleOp> spirvModule =
-      spirv::deserialize(binary, context);
+  OwningOpRef<spirv::ModuleOp> spirvModule = spirv::deserialize(
+      binary, context,
+      spirv::DeserializerConfig::DESERIALIZE_TO_STRUCTURED_OPS);
   if (!spirvModule)
     return {};
 
@@ -123,6 +125,7 @@ void registerToSPIRVTranslation() {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult roundTripModule(ModuleOp srcModule, bool emitDebugInfo,
+                                     spirv::DeserializerConfig config,
                                      raw_ostream &output) {
   SmallVector<uint32_t, 0> binary;
   MLIRContext *context = srcModule.getContext();
@@ -145,8 +148,8 @@ static LogicalResult roundTripModule(ModuleOp srcModule, bool emitDebugInfo,
   // TODO: we should only load the required dialects instead of all dialects.
   deserializationContext.loadAllAvailableDialects();
   // Then deserialize to get back a SPIR-V module.
-  OwningOpRef<spirv::ModuleOp> spirvModule =
-      spirv::deserialize(binary, &deserializationContext);
+  OwningOpRef<spirv::ModuleOp> spirvModule = spirv::deserialize(
+      binary, &deserializationContext, config);
   if (!spirvModule)
     return failure();
 
@@ -165,7 +168,38 @@ void registerTestRoundtripSPIRV() {
   TranslateFromMLIRRegistration roundtrip(
       "test-spirv-roundtrip",
       [](ModuleOp module, raw_ostream &output) {
-        return roundTripModule(module, /*emitDebugInfo=*/false, output);
+        return roundTripModule(
+            module, /*emitDebugInfo=*/false,
+            spirv::DeserializerConfig::DESERIALIZE_TO_STRUCTURED_OPS, output);
+      },
+      [](DialectRegistry &registry) {
+        registry.insert<spirv::SPIRVDialect>();
+      });
+}
+
+void registerTestRoundtripDeserializeToSCF() {
+  TranslateFromMLIRRegistration roundtrip(
+      "test-spirv-roundtrip-deserialize-to-scf",
+      [](ModuleOp module, raw_ostream &output) {
+        return roundTripModule(
+            module, /*emitDebugInfo=*/false,
+            spirv::DeserializerConfig::DESERIALIZE_TO_STRUCTURED_CONTROL_FLOW,
+            output);
+      },
+      [](DialectRegistry &registry) {
+        registry.insert<spirv::SPIRVDialect>();
+      });
+}
+
+void registerTestRoundtripDeserializeToSCFToSO() {
+  TranslateFromMLIRRegistration roundtrip(
+      "test-spirv-roundtrip-deserialize-to-scf-to-so",
+      [](ModuleOp module, raw_ostream &output) {
+        return roundTripModule(
+            module, /*emitDebugInfo=*/false,
+            spirv::DeserializerConfig::
+                DESERIALIZE_TO_STRUCTURED_CONTROL_FLOW_THEN_TO_STRUCTURED_OPS,
+            output);
       },
       [](DialectRegistry &registry) {
         registry.insert<spirv::SPIRVDialect>();
@@ -176,7 +210,9 @@ void registerTestRoundtripDebugSPIRV() {
   TranslateFromMLIRRegistration roundtrip(
       "test-spirv-roundtrip-debug",
       [](ModuleOp module, raw_ostream &output) {
-        return roundTripModule(module, /*emitDebugInfo=*/true, output);
+        return roundTripModule(
+            module, /*emitDebugInfo=*/true,
+            spirv::DeserializerConfig::DESERIALIZE_TO_STRUCTURED_OPS, output);
       },
       [](DialectRegistry &registry) {
         registry.insert<spirv::SPIRVDialect>();
